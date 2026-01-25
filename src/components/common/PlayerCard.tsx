@@ -1,0 +1,134 @@
+import { motion } from 'framer-motion';
+import { User, Star, Globe } from 'lucide-react';
+import type { Player, PlayerBrief } from '../../api/client';
+import clsx from 'clsx';
+
+interface PlayerCardProps {
+  player: Player | PlayerBrief;
+  onClick?: () => void;
+  selected?: boolean;
+  showPrice?: boolean;
+  compact?: boolean;
+}
+
+const roleColors: Record<string, string> = {
+  batsman: 'from-blue-500 to-blue-600',
+  bowler: 'from-purple-500 to-purple-600',
+  all_rounder: 'from-amber-500 to-amber-600',
+  wicket_keeper: 'from-emerald-500 to-emerald-600',
+};
+
+const roleLabels: Record<string, string> = {
+  batsman: 'BAT',
+  bowler: 'BOWL',
+  all_rounder: 'AR',
+  wicket_keeper: 'WK',
+};
+
+export function PlayerCard({
+  player,
+  onClick,
+  selected = false,
+  showPrice = false,
+  compact = false,
+}: PlayerCardProps) {
+  const isFullPlayer = 'batting_style' in player;
+
+  return (
+    <motion.div
+      className={clsx(
+        'player-card',
+        selected && 'ring-2 ring-pitch-500 border-pitch-500/50',
+        onClick && 'cursor-pointer'
+      )}
+      onClick={onClick}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      layout
+    >
+      <div className={clsx('flex items-start gap-3', compact && 'gap-2')}>
+        {/* Avatar */}
+        <div
+          className={clsx(
+            'rounded-xl bg-gradient-to-br flex items-center justify-center text-white',
+            roleColors[player.role] || 'from-gray-500 to-gray-600',
+            compact ? 'w-10 h-10' : 'w-12 h-12'
+          )}
+        >
+          <User className={compact ? 'w-5 h-5' : 'w-6 h-6'} />
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3
+              className={clsx(
+                'font-semibold text-white truncate',
+                compact ? 'text-sm' : 'text-base'
+              )}
+            >
+              {player.name}
+            </h3>
+            {player.is_overseas && (
+              <Globe className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 mt-0.5">
+            <span
+              className={clsx(
+                'badge',
+                player.role === 'batsman' && 'badge-blue',
+                player.role === 'bowler' && 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
+                player.role === 'all_rounder' && 'badge-yellow',
+                player.role === 'wicket_keeper' && 'badge-green'
+              )}
+            >
+              {roleLabels[player.role] || player.role}
+            </span>
+
+            {isFullPlayer && (
+              <span className="text-xs text-dark-400">
+                {'nationality' in player && player.nationality}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Rating */}
+        <div className="flex flex-col items-end">
+          <div className="flex items-center gap-1">
+            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+            <span className="font-bold text-white">{player.overall_rating}</span>
+          </div>
+
+          {showPrice && (
+            <span className="text-xs text-pitch-400 mt-1">
+              ₹{((player.base_price || 0) / 10000000).toFixed(1)}Cr
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Extended stats for full player */}
+      {isFullPlayer && !compact && 'batting' in player && (
+        <div className="mt-3 pt-3 border-t border-dark-700/50">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-xs text-dark-400">BAT</p>
+              <p className="font-semibold text-sm">{player.batting}</p>
+            </div>
+            <div>
+              <p className="text-xs text-dark-400">BOWL</p>
+              <p className="font-semibold text-sm">{player.bowling}</p>
+            </div>
+            <div>
+              <p className="text-xs text-dark-400">AGE</p>
+              <p className="font-semibold text-sm">{'age' in player && player.age}</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+}

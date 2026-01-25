@@ -1,0 +1,156 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-dark-950 text-white antialiased m-0;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-dark-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-dark-500;
+  }
+}
+
+@layer components {
+  /* Glass morphism card */
+  .glass-card {
+    @apply bg-dark-900/50 backdrop-blur-xl border border-dark-700/50 rounded-2xl;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-pitch-400 to-pitch-600 bg-clip-text text-transparent;
+  }
+
+  /* Primary button */
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-r from-pitch-500 to-pitch-600
+           text-white font-semibold rounded-xl
+           shadow-lg shadow-pitch-500/25
+           hover:shadow-xl hover:shadow-pitch-500/30
+           hover:from-pitch-400 hover:to-pitch-500
+           active:scale-[0.98]
+           transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg;
+  }
+
+  /* Secondary button */
+  .btn-secondary {
+    @apply px-6 py-3 bg-dark-800 border border-dark-600
+           text-white font-medium rounded-xl
+           hover:bg-dark-700 hover:border-dark-500
+           active:scale-[0.98]
+           transition-all duration-200;
+  }
+
+  /* Danger button */
+  .btn-danger {
+    @apply px-6 py-3 bg-gradient-to-r from-ball-500 to-ball-600
+           text-white font-semibold rounded-xl
+           shadow-lg shadow-ball-500/25
+           hover:shadow-xl hover:shadow-ball-500/30
+           active:scale-[0.98]
+           transition-all duration-200;
+  }
+
+  /* Input field */
+  .input-field {
+    @apply w-full px-4 py-3 bg-dark-800 border border-dark-600
+           text-white placeholder-dark-400 rounded-xl
+           focus:outline-none focus:border-pitch-500 focus:ring-1 focus:ring-pitch-500
+           transition-all duration-200;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply glass-card p-4 flex flex-col items-center justify-center;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-green {
+    @apply bg-pitch-500/20 text-pitch-400 border border-pitch-500/30;
+  }
+
+  .badge-red {
+    @apply bg-ball-500/20 text-ball-400 border border-ball-500/30;
+  }
+
+  .badge-yellow {
+    @apply bg-yellow-500/20 text-yellow-400 border border-yellow-500/30;
+  }
+
+  .badge-blue {
+    @apply bg-blue-500/20 text-blue-400 border border-blue-500/30;
+  }
+
+  /* Shimmer loading effect */
+  .shimmer {
+    @apply animate-shimmer bg-gradient-to-r from-dark-800 via-dark-700 to-dark-800 bg-[length:200%_100%];
+  }
+
+  /* Player card */
+  .player-card {
+    @apply glass-card p-4 hover:border-pitch-500/50 transition-all duration-300 cursor-pointer;
+  }
+
+  /* Team color indicator */
+  .team-badge {
+    @apply w-3 h-3 rounded-full ring-2 ring-offset-2 ring-offset-dark-900;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar utility */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Safe area padding for mobile */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Text shadow for contrast */
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  }
+}
