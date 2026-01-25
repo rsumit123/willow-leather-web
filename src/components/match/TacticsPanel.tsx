@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Shield, Target, Zap, Play, SkipForward, FastForward } from 'lucide-react';
 import clsx from 'clsx';
 

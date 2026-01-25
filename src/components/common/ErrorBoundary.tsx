@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 
 interface Props {
@@ -7,7 +7,7 @@ interface Props {
 }
 
 interface State {
-  hasError: bool;
+  hasError: boolean;
   error: Error | null;
 }
 

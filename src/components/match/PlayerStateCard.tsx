@@ -1,6 +1,5 @@
-import { motion } from 'framer-motion';
 import type { PlayerStateBrief, BowlerStateBrief } from '../../api/client';
-import { User, Zap, AlertCircle, Flame } from 'lucide-react';
+import { Zap, AlertCircle, Flame } from 'lucide-react';
 import clsx from 'clsx';
 
 interface PlayerStateCardProps {

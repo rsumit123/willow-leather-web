@@ -163,7 +163,7 @@ export function AuctionPage() {
   };
 
   // Show toast message
-  const showToast = (message: string, type: 'error' | 'info') => {
+  const showToast = (message: string, type: 'error' | 'info' | 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };

@@ -47,7 +47,7 @@ export function DashboardPage() {
   });
 
   // Get playoff bracket
-  const { data: playoffBracket, refetch: refetchBracket } = useQuery({
+  const { data: playoffBracket } = useQuery({
     queryKey: ['playoff-bracket', careerId],
     queryFn: () => seasonApi.getPlayoffBracket(careerId!).then((r) => r.data),
     enabled: !!careerId && (careerData?.status === 'playoffs' || careerData?.status === 'post_season'),
@@ -208,25 +208,6 @@ export function DashboardPage() {
 
   const isEliminated = eliminatedInQ1 || eliminatedInElim || eliminatedInQ2;
   const didNotQualify = careerData?.status === 'playoffs' && !qualifiedForPlayoffs;
-
-  // Find next playoff match for user
-  const getNextPlayoffMatch = () => {
-    if (!playoffBracket || !userTeam) return null;
-
-    const matches = [
-      { ...playoffBracket.qualifier_1, type: 'qualifier_1' },
-      { ...playoffBracket.eliminator, type: 'eliminator' },
-      { ...playoffBracket.qualifier_2, type: 'qualifier_2' },
-      { ...playoffBracket.final, type: 'final' },
-    ];
-
-    return matches.find(m =>
-      m.status === 'scheduled' &&
-      (m.team1 === userTeam.short_name || m.team2 === userTeam.short_name)
-    );
-  };
-
-  const nextPlayoffMatch = getNextPlayoffMatch();
 
   return (
     <>
