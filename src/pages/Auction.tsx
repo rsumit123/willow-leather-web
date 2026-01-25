@@ -329,44 +329,6 @@ export function AuctionPage() {
     }
   };
 
-  // Handle Pass/Fold - let AI teams fight it out
-  const handlePass = async () => {
-    setPhase('ai_simulation');
-    simulationRef.current = true;
-    setAutoBidEnabled(false);
-
-    // Run AI simulation until completion
-    while (simulationRef.current) {
-      await new Promise(resolve => setTimeout(resolve, 500)); // 0.5s delay for visual effect
-
-      if (!simulationRef.current) break;
-
-      const { data: currentState } = await refetchState();
-
-      if (!currentState || !currentState.current_player) {
-        break;
-      }
-
-      // Simulate one round of AI bidding
-      try {
-        await simulateMutation.mutateAsync();
-      } catch (error) {
-        // No more bidders, finalize
-        break;
-      }
-
-      // Check if bidding has stalled (same bidder for multiple rounds)
-      const { data: newState } = await refetchState();
-      if (newState?.current_bidder_team_id === currentState?.current_bidder_team_id) {
-        // No new bids, finalize
-        await finalizeMutation.mutateAsync();
-        break;
-      }
-    }
-
-    simulationRef.current = false;
-  };
-
   // Get bid increment based on current bid
   const getBidIncrement = (currentBid: number): number => {
     if (currentBid >= 150000000) return 10000000; // 1 crore
