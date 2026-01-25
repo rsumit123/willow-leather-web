@@ -103,6 +103,40 @@ export interface AuctionPlayerResult {
   bid_history: Array<{ team_id: number; amount: number }>;
 }
 
+export interface SkipCategoryPlayerResult {
+  player_id: number;
+  player_name: string;
+  is_sold: boolean;
+  sold_to_team_id?: number;
+  sold_to_team_name?: string;
+  sold_price: number;
+}
+
+export interface SkipCategoryResponse {
+  players_auctioned: number;
+  results: SkipCategoryPlayerResult[];
+}
+
+export interface SoldPlayerBrief {
+  id: number;
+  name: string;
+  role: string;
+  overall_rating: number;
+  is_overseas: boolean;
+  base_price: number;
+  sold_price: number;
+  sold_to_team_name: string;
+}
+
+export interface CategoryPlayersResponse {
+  current_category: string | null;
+  current_player_id: number | null;
+  categories: Record<string, PlayerBrief[]>;
+  counts: Record<string, number>;
+  sold: Record<string, SoldPlayerBrief[]>;
+  sold_counts: Record<string, number>;
+}
+
 export interface Fixture {
   id: number;
   match_number: number;
@@ -268,6 +302,12 @@ export const auctionApi = {
     api.post<AuctionPlayerResult>(`/auction/${careerId}/finalize-player`),
   autoComplete: (careerId: number) =>
     api.post(`/auction/${careerId}/auto-complete`),
+  getRemainingPlayers: (careerId: number) =>
+    api.get<CategoryPlayersResponse>(`/auction/${careerId}/remaining-players`),
+  skipCategory: (careerId: number, category: string) =>
+    api.post<SkipCategoryResponse>(`/auction/${careerId}/skip-category/${category}`),
+  quickPass: (careerId: number) =>
+    api.post<AuctionPlayerResult>(`/auction/${careerId}/quick-pass`),
 };
 
 export const seasonApi = {

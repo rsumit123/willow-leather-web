@@ -16,9 +16,11 @@ import {
   Zap,
   AlertCircle,
   SkipForward,
+  List,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { auctionApi, careerApi, type Player } from '../api/client';
+import { auctionApi, careerApi, type Player, type SkipCategoryPlayerResult } from '../api/client';
+import { PlayerListDrawer } from '../components/auction/PlayerListDrawer';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { PageHeader } from '../components/common/PageHeader';
@@ -47,6 +49,9 @@ export function AuctionPage() {
   const [hasStarted, setHasStarted] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'info' | 'success' } | null>(null);
   const [capExceededAmount, setCapExceededAmount] = useState<number>(0);
+  const [capExceededReason, setCapExceededReason] = useState<'manual_cap' | 'budget_reserve'>('manual_cap');
+  const [showPlayerList, setShowPlayerList] = useState(false);
+  const [skipResults, setSkipResults] = useState<SkipCategoryPlayerResult[] | null>(null);
 
   // Ref to track if we're in the middle of a simulation
   const simulationRef = useRef(false);
@@ -63,6 +68,13 @@ export function AuctionPage() {
     queryKey: ['auction-teams', careerId],
     queryFn: () => auctionApi.getTeamsState(careerId!).then((r) => r.data),
     enabled: !!careerId,
+  });
+
+  // Fetch remaining players by category
+  const { data: remainingPlayers, refetch: refetchRemainingPlayers } = useQuery({
+    queryKey: ['remaining-players', careerId],
+    queryFn: () => auctionApi.getRemainingPlayers(careerId!).then((r) => r.data),
+    enabled: !!careerId && state?.status === 'in_progress',
   });
 
   // Start auction
@@ -140,6 +152,45 @@ export function AuctionPage() {
       queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
       queryClient.invalidateQueries({ queryKey: ['career'] });
       navigate('/dashboard');
+    },
+  });
+
+  // Skip category mutation
+  const skipCategoryMutation = useMutation({
+    mutationFn: (category: string) => auctionApi.skipCategory(careerId!, category),
+    onSuccess: (response) => {
+      setSkipResults(response.data.results);
+      queryClient.invalidateQueries({ queryKey: ['auction-state'] });
+      queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
+      queryClient.invalidateQueries({ queryKey: ['remaining-players'] });
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.detail || 'Failed to skip category';
+      showToast(message, 'error');
+    },
+  });
+
+  // Quick pass mutation
+  const quickPassMutation = useMutation({
+    mutationFn: () => auctionApi.quickPass(careerId!),
+    onSuccess: (response) => {
+      const result = response.data;
+      setLastResult({
+        player: result.player_name,
+        sold: result.is_sold,
+        team: result.sold_to_team_name || undefined,
+        price: result.sold_price,
+      });
+      setPhase('auction_end');
+      setAutoBidEnabled(false);
+      simulationRef.current = false;
+      queryClient.invalidateQueries({ queryKey: ['auction-state'] });
+      queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
+      queryClient.invalidateQueries({ queryKey: ['remaining-players'] });
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.detail || 'Failed to quick pass';
+      showToast(message, 'error');
     },
   });
 
@@ -247,18 +298,20 @@ export function AuctionPage() {
 
       // Check if we should continue auto-bidding
       if (nextBid > userState.max_bid_possible) {
-        showToast('Insufficient funds to continue', 'info');
+        showToast('Budget reserve limit reached', 'info');
         setAutoBidEnabled(false);
         setCapExceededAmount(nextBid);
+        setCapExceededReason('budget_reserve');
         setPhase('cap_exceeded');
         simulationRef.current = false;
         break;
       }
 
       if (nextBid > maxCap) {
-        // Cap exceeded - show options to user
+        // Manual cap exceeded - show options to user
         setAutoBidEnabled(false);
         setCapExceededAmount(nextBid);
+        setCapExceededReason('manual_cap');
         setPhase('cap_exceeded');
         simulationRef.current = false;
         break;
@@ -426,6 +479,7 @@ export function AuctionPage() {
 
   const isUserHighestBidder = state?.current_bidder_team_name === career?.user_team?.short_name;
   const nextBidAmount = state?.current_bid ? state.current_bid + getBidIncrement(state.current_bid) : 0;
+  const canAffordNextBid = userTeamState ? nextBidAmount <= userTeamState.max_bid_possible : false;
 
   return (
     <>
@@ -435,7 +489,14 @@ export function AuctionPage() {
         <header className="sticky top-14 z-30 bg-dark-950/90 backdrop-blur-lg border-b border-dark-800">
           <div className="max-w-lg mx-auto px-4 py-3">
             <div className="flex items-center justify-between">
-              <div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowPlayerList(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-dark-800 hover:bg-dark-700 rounded-lg transition-colors"
+                >
+                  <List className="w-4 h-4 text-pitch-400" />
+                  <span className="text-xs text-dark-300">Players</span>
+                </button>
                 <p className="text-xs text-dark-400">
                   {state?.players_sold || 0} sold • {state?.players_unsold || 0} unsold
                 </p>
@@ -627,8 +688,11 @@ export function AuctionPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           onClick={handleBid}
-                          disabled={bidMutation.isPending || isUserHighestBidder}
-                          className="btn-primary flex flex-col items-center justify-center gap-1 py-3"
+                          disabled={bidMutation.isPending || isUserHighestBidder || !canAffordNextBid}
+                          className={clsx(
+                            "flex flex-col items-center justify-center gap-1 py-3",
+                            canAffordNextBid ? "btn-primary" : "btn-secondary opacity-50 cursor-not-allowed"
+                          )}
                         >
                           <div className="flex items-center gap-2">
                             <TrendingUp className="w-5 h-5" />
@@ -640,14 +704,20 @@ export function AuctionPage() {
                         </button>
 
                         <button
-                          onClick={handlePass}
-                          disabled={simulateMutation.isPending}
+                          onClick={() => quickPassMutation.mutate()}
+                          disabled={quickPassMutation.isPending || simulateMutation.isPending}
                           className="btn-secondary flex items-center justify-center gap-2"
                         >
                           <SkipForward className="w-5 h-5" />
-                          Pass
+                          {quickPassMutation.isPending ? 'AI Bidding...' : 'Pass'}
                         </button>
                       </div>
+
+                      {!canAffordNextBid && !isUserHighestBidder && (
+                        <p className="text-center text-amber-400 text-sm">
+                          Can't bid - need to reserve ₹2Cr per slot for min squad ({Math.max(0, 18 - (userTeamState?.total_players || 0))} slots left)
+                        </p>
+                      )}
 
                       {isUserHighestBidder && (
                         <p className="text-center text-pitch-400 text-sm">
@@ -673,54 +743,95 @@ export function AuctionPage() {
                       animate={{ opacity: 1, scale: 1 }}
                       className="glass-card p-4 border-2 border-amber-500/50 bg-amber-500/10"
                     >
-                      <div className="flex items-center gap-2 mb-3">
-                        <AlertCircle className="w-5 h-5 text-amber-500" />
-                        <p className="font-semibold text-amber-400">Max Cap Reached!</p>
-                      </div>
-                      <p className="text-sm text-dark-300 mb-4">
-                        Bidding has exceeded your cap of {formatPrice(parseMaxBidCap())}.
-                        Current bid is {formatPrice(capExceededAmount - getBidIncrement(capExceededAmount - getBidIncrement(0)))}.
-                      </p>
+                      {capExceededReason === 'budget_reserve' ? (
+                        <>
+                          <div className="flex items-center gap-2 mb-3">
+                            <AlertCircle className="w-5 h-5 text-amber-500" />
+                            <p className="font-semibold text-amber-400">Budget Reserve Limit</p>
+                          </div>
+                          <p className="text-sm text-dark-300 mb-2">
+                            You need to reserve funds for your minimum squad (18 players).
+                          </p>
+                          <div className="bg-dark-800/50 rounded-lg p-3 mb-4 text-sm">
+                            <div className="flex justify-between mb-1">
+                              <span className="text-dark-400">Your purse:</span>
+                              <span className="text-white">{formatPrice(userTeamState?.remaining_budget || 0)}</span>
+                            </div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-dark-400">Players owned:</span>
+                              <span className="text-white">{userTeamState?.total_players || 0}/18 min</span>
+                            </div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-dark-400">Slots to fill:</span>
+                              <span className="text-white">{Math.max(0, 18 - (userTeamState?.total_players || 0))}</span>
+                            </div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-dark-400">Reserved (₹2Cr/slot):</span>
+                              <span className="text-ball-400">-{formatPrice(Math.max(0, 18 - (userTeamState?.total_players || 0) - 1) * 20000000)}</span>
+                            </div>
+                            <div className="border-t border-dark-700 mt-2 pt-2 flex justify-between">
+                              <span className="text-dark-400">Max bid possible:</span>
+                              <span className="text-pitch-400 font-semibold">{formatPrice(userTeamState?.max_bid_possible || 0)}</span>
+                            </div>
+                          </div>
+                          <p className="text-xs text-dark-500 mb-4">
+                            Buy more players at base price to free up your bidding power, or pass on this player.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2 mb-3">
+                            <AlertCircle className="w-5 h-5 text-amber-500" />
+                            <p className="font-semibold text-amber-400">Auto-Bid Cap Reached</p>
+                          </div>
+                          <p className="text-sm text-dark-300 mb-4">
+                            Bidding has exceeded your auto-bid cap of {formatPrice(parseMaxBidCap())}.
+                            Next bid would be {formatPrice(capExceededAmount)}.
+                          </p>
+
+                          <div className="flex items-center gap-2 mb-3">
+                            <label className="text-sm text-dark-400 whitespace-nowrap">New Cap:</label>
+                            <div className="flex-1 flex items-center">
+                              <span className="text-dark-400 text-sm mr-1">₹</span>
+                              <input
+                                type="number"
+                                value={maxBidCap}
+                                onChange={(e) => setMaxBidCap(e.target.value)}
+                                placeholder={((capExceededAmount || 0) / 10000000 + 1).toFixed(1)}
+                                className="flex-1 bg-dark-800 border-2 border-amber-500/50 rounded-lg px-3 py-2 text-sm text-white placeholder-dark-500 focus:outline-none focus:border-amber-500"
+                              />
+                              <span className="text-dark-400 text-sm ml-1">Cr</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
 
                       <div className="space-y-3">
-                        {/* Set new cap */}
-                        <div className="flex items-center gap-2">
-                          <label className="text-sm text-dark-400 whitespace-nowrap">New Cap:</label>
-                          <div className="flex-1 flex items-center">
-                            <span className="text-dark-400 text-sm mr-1">₹</span>
-                            <input
-                              type="number"
-                              value={maxBidCap}
-                              onChange={(e) => setMaxBidCap(e.target.value)}
-                              placeholder={((capExceededAmount || 0) / 10000000 + 1).toFixed(1)}
-                              className="flex-1 bg-dark-800 border-2 border-amber-500/50 rounded-lg px-3 py-2 text-sm text-white placeholder-dark-500 focus:outline-none focus:border-amber-500"
-                            />
-                            <span className="text-dark-400 text-sm ml-1">Cr</span>
-                          </div>
-                        </div>
-
                         <div className="grid grid-cols-2 gap-2">
-                          <button
-                            onClick={() => {
-                              setAutoBidEnabled(true);
-                              setPhase('ai_simulation');
-                              runAutoBidLoop();
-                            }}
-                            className="btn-primary py-3 flex items-center justify-center gap-2 ring-2 ring-pitch-400/50 animate-pulse"
-                          >
-                            <Zap className="w-4 h-4" />
-                            Continue Bidding
-                          </button>
+                          {capExceededReason === 'manual_cap' && (
+                            <button
+                              onClick={() => {
+                                setAutoBidEnabled(true);
+                                setPhase('ai_simulation');
+                                runAutoBidLoop();
+                              }}
+                              className="btn-primary py-3 flex items-center justify-center gap-2 ring-2 ring-pitch-400/50 animate-pulse"
+                            >
+                              <Zap className="w-4 h-4" />
+                              Continue Bidding
+                            </button>
+                          )}
 
                           <button
-                            onClick={() => {
-                              setPhase('ai_simulation');
-                              handlePass();
-                            }}
-                            className="btn-secondary py-3 flex items-center justify-center gap-2 ring-2 ring-amber-400/50"
+                            onClick={() => quickPassMutation.mutate()}
+                            disabled={quickPassMutation.isPending}
+                            className={clsx(
+                              "btn-secondary py-3 flex items-center justify-center gap-2",
+                              capExceededReason === 'budget_reserve' && "col-span-2"
+                            )}
                           >
                             <SkipForward className="w-4 h-4" />
-                            Pass
+                            {quickPassMutation.isPending ? 'AI Bidding...' : 'Pass on Player'}
                           </button>
                         </div>
 
@@ -924,6 +1035,27 @@ export function AuctionPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Player List Drawer */}
+        <PlayerListDrawer
+          isOpen={showPlayerList}
+          onClose={() => setShowPlayerList(false)}
+          categories={remainingPlayers?.categories || {}}
+          counts={remainingPlayers?.counts || {}}
+          sold={remainingPlayers?.sold || {}}
+          soldCounts={remainingPlayers?.sold_counts || {}}
+          currentCategory={remainingPlayers?.current_category || null}
+          currentPlayerId={remainingPlayers?.current_player_id || null}
+          onSkipCategory={(category) => skipCategoryMutation.mutate(category)}
+          isSkipping={skipCategoryMutation.isPending}
+          skipResults={skipResults}
+          onClearResults={() => {
+            setSkipResults(null);
+            refetchState();
+            refetchTeams();
+            refetchRemainingPlayers();
+          }}
+        />
       </div>
     </>
   );
