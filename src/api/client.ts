@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { showDevToast } from '../components/common/DevToast';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -8,6 +9,55 @@ export const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Development mode error interceptor - shows API errors as toasts
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (import.meta.env.DEV) {
+      const url = error.config?.url || 'unknown';
+      const method = error.config?.method?.toUpperCase() || 'REQUEST';
+      const status = error.response?.status || 'Network Error';
+
+      // Extract error message from response
+      let errorMessage = error.message;
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.detail) {
+          // FastAPI returns errors as { detail: string } or { detail: [{msg, loc, type}] }
+          const detail = error.response.data.detail;
+          if (typeof detail === 'string') {
+            errorMessage = detail;
+          } else if (Array.isArray(detail)) {
+            // Validation errors - extract messages
+            errorMessage = detail.map((e: any) => `${e.loc?.join('.')}: ${e.msg}`).join('\n');
+          }
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        }
+      }
+
+      // Include request body for POST/PUT requests
+      let details = errorMessage !== error.message ? errorMessage : undefined;
+      if (error.config?.data && ['POST', 'PUT', 'PATCH'].includes(method)) {
+        try {
+          const body = typeof error.config.data === 'string'
+            ? JSON.parse(error.config.data)
+            : error.config.data;
+          details = `${details || ''}\n\nRequest: ${JSON.stringify(body, null, 2)}`.trim();
+        } catch {
+          // Ignore JSON parse errors
+        }
+      }
+
+      const toastMessage = `${method} ${url} - ${status}`;
+      showDevToast(toastMessage, 'error', details);
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 // Types
 export interface Team {
