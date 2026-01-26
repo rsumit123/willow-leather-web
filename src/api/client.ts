@@ -278,6 +278,7 @@ export interface AvailableBowler {
   id: number;
   name: string;
   bowling_type: string; // "pace", "medium", "off_spin", "leg_spin", "left_arm_spin"
+  bowling_skill: number; // 1-100 bowling attribute
   overs_bowled: string; // "2.3" format (overs.balls)
   wickets: number;
   runs_conceded: number;

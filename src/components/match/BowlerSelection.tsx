@@ -76,7 +76,17 @@ export function BowlerSelection({ bowlers, onSelect, isLoading }: BowlerSelectio
               >
                 <div className="flex justify-between items-center">
                   <div>
-                    <div className="font-medium text-white">{bowler.name}</div>
+                    <div className="font-medium text-white flex items-center gap-2">
+                      {bowler.name}
+                      <span className={clsx(
+                        "text-xs px-1.5 py-0.5 rounded",
+                        bowler.bowling_skill >= 70 ? "bg-pitch-500/30 text-pitch-400" :
+                        bowler.bowling_skill >= 40 ? "bg-amber-500/30 text-amber-400" :
+                        "bg-red-500/30 text-red-400"
+                      )}>
+                        {bowler.bowling_skill}
+                      </span>
+                    </div>
                     <div className="text-xs text-dark-400">{formatBowlingType(bowler.bowling_type)}</div>
                     {!bowler.can_bowl && bowler.reason && (
                       <div className="text-xs text-red-400 mt-1">{bowler.reason}</div>
