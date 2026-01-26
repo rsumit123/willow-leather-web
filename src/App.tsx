@@ -9,6 +9,7 @@ import { SquadPage } from './pages/Squad';
 import { StandingsPage } from './pages/Standings';
 import { FixturesPage } from './pages/Fixtures';
 import { MatchPage } from './pages/Match';
+import { PlayingXIPage } from './pages/PlayingXI';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +36,7 @@ function App() {
             <Route path="/standings" element={<StandingsPage />} />
             <Route path="/fixtures" element={<FixturesPage />} />
             <Route path="/match/:fixtureId" element={<MatchPage />} />
+            <Route path="/playing-xi" element={<PlayingXIPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

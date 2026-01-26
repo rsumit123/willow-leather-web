@@ -117,6 +117,21 @@ export interface SkipCategoryResponse {
   results: SkipCategoryPlayerResult[];
 }
 
+export interface AutoBidResponse {
+  status: 'won' | 'lost' | 'cap_exceeded' | 'budget_limit';
+  // When won/lost
+  player_id?: number;
+  player_name?: string;
+  is_sold?: boolean;
+  sold_to_team_id?: number;
+  sold_to_team_name?: string;
+  sold_price?: number;
+  // When cap_exceeded/budget_limit
+  current_bid?: number;
+  current_bidder_team_name?: string;
+  next_bid_needed?: number;
+}
+
 export interface SoldPlayerBrief {
   id: number;
   name: string;
@@ -178,6 +193,22 @@ export interface Squad {
   players: Player[];
   total_players: number;
   overseas_count: number;
+}
+
+export interface PlayingXIPlayer extends Player {
+  position: number;
+}
+
+export interface PlayingXIResponse {
+  players: PlayingXIPlayer[];
+  is_valid: boolean;
+  is_set: boolean;
+}
+
+export interface PlayingXIValidationResponse {
+  valid: boolean;
+  errors: string[];
+  breakdown: Record<string, number>;
 }
 
 export interface PlayerStateBrief {
@@ -286,6 +317,12 @@ export const careerApi = {
   getTeams: (careerId: number) => api.get<Team[]>(`/career/${careerId}/teams`),
   getSquad: (careerId: number, teamId: number) =>
     api.get<Squad>(`/career/${careerId}/teams/${teamId}/squad`),
+  getPlayingXI: (careerId: number) =>
+    api.get<PlayingXIResponse>(`/career/${careerId}/playing-xi`),
+  setPlayingXI: (careerId: number, playerIds: number[]) =>
+    api.post<PlayingXIResponse>(`/career/${careerId}/playing-xi`, { player_ids: playerIds }),
+  validatePlayingXI: (careerId: number, playerIds: number[]) =>
+    api.post<PlayingXIValidationResponse>(`/career/${careerId}/playing-xi/validate`, { player_ids: playerIds }),
 };
 
 export const auctionApi = {
@@ -308,6 +345,8 @@ export const auctionApi = {
     api.post<SkipCategoryResponse>(`/auction/${careerId}/skip-category/${category}`),
   quickPass: (careerId: number) =>
     api.post<AuctionPlayerResult>(`/auction/${careerId}/quick-pass`),
+  autoBid: (careerId: number, maxBid: number) =>
+    api.post<AutoBidResponse>(`/auction/${careerId}/auto-bid`, { max_bid: maxBid }),
 };
 
 export const seasonApi = {

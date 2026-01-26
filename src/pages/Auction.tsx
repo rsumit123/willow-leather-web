@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -53,8 +53,6 @@ export function AuctionPage() {
   const [showPlayerList, setShowPlayerList] = useState(false);
   const [skipResults, setSkipResults] = useState<SkipCategoryPlayerResult[] | null>(null);
 
-  // Ref to track if we're in the middle of a simulation
-  const simulationRef = useRef(false);
 
   // Fetch auction state
   const { data: state, isLoading: stateLoading, refetch: refetchState } = useQuery({
@@ -138,7 +136,6 @@ export function AuctionPage() {
       });
       setPhase('auction_end');
       setAutoBidEnabled(false);
-      simulationRef.current = false;
       queryClient.invalidateQueries({ queryKey: ['auction-state'] });
       queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
     },
@@ -183,7 +180,6 @@ export function AuctionPage() {
       });
       setPhase('auction_end');
       setAutoBidEnabled(false);
-      simulationRef.current = false;
       queryClient.invalidateQueries({ queryKey: ['auction-state'] });
       queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
       queryClient.invalidateQueries({ queryKey: ['remaining-players'] });
@@ -191,6 +187,49 @@ export function AuctionPage() {
     onError: (error: any) => {
       const message = error.response?.data?.detail || 'Failed to quick pass';
       showToast(message, 'error');
+    },
+  });
+
+  // Auto-bid mutation - single API call for entire bidding sequence
+  const autoBidMutation = useMutation({
+    mutationFn: (maxBid: number) => auctionApi.autoBid(careerId!, maxBid),
+    onSuccess: (response) => {
+      const result = response.data;
+
+      if (result.status === 'won' || result.status === 'lost') {
+        // Bidding complete - show result
+        setLastResult({
+          player: result.player_name!,
+          sold: result.is_sold!,
+          team: result.sold_to_team_name || undefined,
+          price: result.sold_price!,
+        });
+        setPhase('auction_end');
+        if (result.status === 'won') {
+          showToast('You won the auction!', 'success');
+        }
+      } else if (result.status === 'cap_exceeded') {
+        // User's cap exceeded - let them increase or pass
+        setCapExceededAmount(result.next_bid_needed!);
+        setCapExceededReason('manual_cap');
+        setPhase('cap_exceeded');
+        showToast(`Outbid! Current: ${formatPrice(result.current_bid!)} by ${result.current_bidder_team_name}`, 'info');
+      } else if (result.status === 'budget_limit') {
+        // Budget reserve limit hit
+        setCapExceededAmount(result.next_bid_needed!);
+        setCapExceededReason('budget_reserve');
+        setPhase('cap_exceeded');
+      }
+
+      setAutoBidEnabled(false);
+      queryClient.invalidateQueries({ queryKey: ['auction-state'] });
+      queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
+      queryClient.invalidateQueries({ queryKey: ['remaining-players'] });
+    },
+    onError: (error: any) => {
+      showToast(error.response?.data?.detail || 'Auto-bid failed', 'error');
+      setPhase('user_turn');
+      setAutoBidEnabled(false);
     },
   });
 
@@ -221,110 +260,17 @@ export function AuctionPage() {
 
   // Handle user bid with auto-bid logic
   const handleBid = async () => {
-    try {
-      await bidMutation.mutateAsync();
-
-      // If auto-bid enabled, start simulation loop
-      if (autoBidEnabled) {
-        setPhase('ai_simulation');
-        runAutoBidLoop();
-      }
-    } catch (error) {
-      // Error handled in mutation onError
-    }
-  };
-
-  // Auto-bid loop
-  const runAutoBidLoop = async () => {
-    simulationRef.current = true;
-    let consecutiveWinningRounds = 0;
-
-    while (simulationRef.current) {
-      await new Promise(resolve => setTimeout(resolve, 600)); // 0.6s delay
-
-      if (!simulationRef.current) break;
-
-      // Refresh state
-      const { data: currentState } = await refetchState();
-      const { data: currentTeams } = await refetchTeams();
-
-      if (!currentState || !currentState.current_player) {
-        simulationRef.current = false;
-        break;
-      }
-
-      // Check if user is highest bidder
-      if (currentState.current_bidder_team_name === career?.user_team?.short_name) {
-        // User is winning, simulate AI to see if they outbid
-        const previousBid = currentState.current_bid;
-        const previousBidder = currentState.current_bidder_team_id;
-
-        await simulateMutation.mutateAsync();
-
-        // Check if AI actually bid
-        const { data: afterSimState } = await refetchState();
-
-        if (afterSimState?.current_bidder_team_id === previousBidder &&
-            afterSimState?.current_bid === previousBid) {
-          // No one outbid user - they won!
-          consecutiveWinningRounds++;
-
-          if (consecutiveWinningRounds >= 2) {
-            // User has won the auction - finalize automatically
-            showToast('You won the auction!', 'success');
-            simulationRef.current = false;
-            setAutoBidEnabled(false);
-            await finalizeMutation.mutateAsync();
-            break;
-          }
-        } else {
-          consecutiveWinningRounds = 0;
-        }
-        continue;
-      }
-
-      // Reset winning counter since user is not highest bidder
-      consecutiveWinningRounds = 0;
-
-      // Validate if user can still bid
-      const userState = currentTeams?.find((t) => career?.user_team?.short_name === t.team_name);
-      if (!userState) {
-        simulationRef.current = false;
-        break;
-      }
-
-      const nextBid = currentState.current_bid + getBidIncrement(currentState.current_bid);
-      const maxCap = parseMaxBidCap();
-
-      // Check if we should continue auto-bidding
-      if (nextBid > userState.max_bid_possible) {
-        showToast('Budget reserve limit reached', 'info');
-        setAutoBidEnabled(false);
-        setCapExceededAmount(nextBid);
-        setCapExceededReason('budget_reserve');
-        setPhase('cap_exceeded');
-        simulationRef.current = false;
-        break;
-      }
-
-      if (nextBid > maxCap) {
-        // Manual cap exceeded - show options to user
-        setAutoBidEnabled(false);
-        setCapExceededAmount(nextBid);
-        setCapExceededReason('manual_cap');
-        setPhase('cap_exceeded');
-        simulationRef.current = false;
-        break;
-      }
-
-      // Place bid
+    if (autoBidEnabled) {
+      // Use new backend auto-bid endpoint - single API call
+      const maxBid = parseMaxBidCap();
+      setPhase('ai_simulation');
+      autoBidMutation.mutate(maxBid);
+    } else {
+      // Single manual bid
       try {
         await bidMutation.mutateAsync();
       } catch (error) {
-        setAutoBidEnabled(false);
-        setPhase('user_turn');
-        simulationRef.current = false;
-        break;
+        // Error handled in mutation onError
       }
     }
   };
@@ -773,14 +719,15 @@ export function AuctionPage() {
                           {capExceededReason === 'manual_cap' && (
                             <button
                               onClick={() => {
-                                setAutoBidEnabled(true);
+                                const newMaxBid = parseMaxBidCap();
                                 setPhase('ai_simulation');
-                                runAutoBidLoop();
+                                autoBidMutation.mutate(newMaxBid);
                               }}
+                              disabled={autoBidMutation.isPending}
                               className="btn-primary py-3 flex items-center justify-center gap-2 ring-2 ring-pitch-400/50 animate-pulse"
                             >
                               <Zap className="w-4 h-4" />
-                              Continue Bidding
+                              {autoBidMutation.isPending ? 'Bidding...' : 'Continue Bidding'}
                             </button>
                           )}
 

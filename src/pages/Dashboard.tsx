@@ -10,6 +10,7 @@ import {
   Crown,
   XCircle,
   ArrowRight,
+  Shield,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { careerApi, seasonApi } from '../api/client';
@@ -59,6 +60,13 @@ export function DashboardPage() {
     queryFn: () =>
       careerApi.getSquad(careerId!, careerData!.user_team_id!).then((r) => r.data),
     enabled: !!careerId && !!careerData?.user_team_id,
+  });
+
+  // Get playing XI (for pre-season gate and in-season editing)
+  const { data: playingXI } = useQuery({
+    queryKey: ['playing-xi', careerId],
+    queryFn: () => careerApi.getPlayingXI(careerId!).then((r) => r.data),
+    enabled: !!careerId && (careerData?.status === 'pre_season' || careerData?.status === 'in_season'),
   });
 
   // Generate fixtures mutation
@@ -171,14 +179,20 @@ export function DashboardPage() {
     }
   }, [playoffBracket, careerData?.status]);
 
+  // Redirect to auction if needed
+  useEffect(() => {
+    if (careerData?.status === 'pre_auction' || careerData?.status === 'auction') {
+      navigate('/auction');
+    }
+  }, [careerData?.status, navigate]);
+
   if (!careerId || careerLoading) {
     return <Loading fullScreen text="Loading..." />;
   }
 
-  // Check if need to go to auction
+  // Show loading while redirecting to auction
   if (careerData?.status === 'pre_auction' || careerData?.status === 'auction') {
-    navigate('/auction');
-    return null;
+    return <Loading fullScreen text="Loading..." />;
   }
 
   const userTeam = careerData?.user_team;
@@ -375,20 +389,40 @@ export function DashboardPage() {
             transition={{ delay: 0.1 }}
             className="glass-card p-5 text-center"
           >
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-pitch-500/20 flex items-center justify-center">
-              <Calendar className="w-8 h-8 text-pitch-500" />
-            </div>
-            <h2 className="text-lg font-semibold mb-2">Ready for Season?</h2>
-            <p className="text-dark-400 text-sm mb-4">
-              Your squad is set! Generate the fixtures to start the league.
-            </p>
-            <button
-              onClick={() => generateFixturesMutation.mutate()}
-              disabled={generateFixturesMutation.isPending}
-              className="btn-primary"
-            >
-              {generateFixturesMutation.isPending ? 'Generating...' : 'Generate Fixtures'}
-            </button>
+            {playingXI?.is_set ? (
+              <>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-pitch-500/20 flex items-center justify-center">
+                  <Calendar className="w-8 h-8 text-pitch-500" />
+                </div>
+                <h2 className="text-lg font-semibold mb-2">Ready for Season?</h2>
+                <p className="text-dark-400 text-sm mb-4">
+                  Your playing XI is set! Generate the fixtures to start the league.
+                </p>
+                <button
+                  onClick={() => generateFixturesMutation.mutate()}
+                  disabled={generateFixturesMutation.isPending}
+                  className="btn-primary"
+                >
+                  {generateFixturesMutation.isPending ? 'Generating...' : 'Generate Fixtures'}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-500/20 flex items-center justify-center">
+                  <Shield className="w-8 h-8 text-amber-500" />
+                </div>
+                <h2 className="text-lg font-semibold mb-2">Select Your Playing XI</h2>
+                <p className="text-dark-400 text-sm mb-4">
+                  Choose your 11 players before generating fixtures.
+                </p>
+                <button
+                  onClick={() => navigate('/playing-xi')}
+                  className="btn-primary"
+                >
+                  Select Playing XI
+                </button>
+              </>
+            )}
           </motion.div>
         )}
 
@@ -537,6 +571,22 @@ export function DashboardPage() {
             </div>
             <ChevronRight className="w-4 h-4 text-dark-500 ml-auto" />
           </Link>
+
+          {careerData?.status === 'in_season' && (
+            <Link
+              to="/playing-xi"
+              className="glass-card p-4 flex items-center gap-3 hover:border-dark-500 transition-colors col-span-2"
+            >
+              <div className="w-10 h-10 rounded-xl bg-pitch-500/20 flex items-center justify-center">
+                <Shield className="w-5 h-5 text-pitch-400" />
+              </div>
+              <div>
+                <p className="font-medium text-white">Playing XI</p>
+                <p className="text-xs text-dark-400">Edit your lineup before the next match</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-dark-500 ml-auto" />
+            </Link>
+          )}
         </motion.div>
 
         {/* Top of table */}
