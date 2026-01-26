@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { matchApi, seasonApi, type BallResult, type TossResult } from '../api/client';
+import { matchApi, seasonApi, type BallResult, type TossResult, type AvailableBowlersResponse } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { ScoreHeader } from '../components/match/ScoreHeader';
@@ -10,7 +10,8 @@ import { PlayerStateCard } from '../components/match/PlayerStateCard';
 import { ThisOver } from '../components/match/ThisOver';
 import { TacticsPanel } from '../components/match/TacticsPanel';
 import { TossScreen } from '../components/match/TossScreen';
-import { Trophy, Home, AlertCircle } from 'lucide-react';
+import { BowlerSelection } from '../components/match/BowlerSelection';
+import { Trophy, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 
@@ -25,6 +26,7 @@ export function MatchPage() {
   const [tossResult, setTossResult] = useState<TossResult | null>(null);
   const [showInningsChange, setShowInningsChange] = useState(false);
   const [inningsChangeInfo, setInningsChangeInfo] = useState<{ target: number; battingTeam: string } | null>(null);
+  const [showBowlerSelect, setShowBowlerSelect] = useState(false);
 
   const fid = parseInt(fixtureId || '0');
 
@@ -138,6 +140,29 @@ export function MatchPage() {
       }
     }
   });
+
+  // Get available bowlers query
+  const { data: availableBowlers } = useQuery({
+    queryKey: ['available-bowlers', careerId, fid],
+    queryFn: () => matchApi.getAvailableBowlers(careerId!, fid).then((r) => r.data),
+    enabled: !!careerId && !!fid && showBowlerSelect,
+  });
+
+  // Select bowler mutation
+  const selectBowlerMutation = useMutation({
+    mutationFn: (bowlerId: number) => matchApi.selectBowler(careerId!, fid, bowlerId),
+    onSuccess: (response) => {
+      queryClient.setQueryData(['match-state', careerId, fid], response.data);
+      setShowBowlerSelect(false);
+    },
+  });
+
+  // Show bowler selection when can_change_bowler is true and user is bowling
+  useEffect(() => {
+    if (state?.can_change_bowler && !showBowlerSelect && !showInningsChange) {
+      setShowBowlerSelect(true);
+    }
+  }, [state?.can_change_bowler, showInningsChange]);
 
   // Check if match is already in progress (skip toss)
   // If there's an error (404 - session lost), show toss screen to restart
@@ -263,6 +288,22 @@ export function MatchPage() {
         )}
       </AnimatePresence>
 
+      {/* Bowler Selection Modal */}
+      {showBowlerSelect && availableBowlers && (
+        <BowlerSelection
+          bowlers={availableBowlers.bowlers}
+          onSelect={(bowlerId) => selectBowlerMutation.mutate(bowlerId)}
+          onClose={() => {
+            // Auto-select first available bowler
+            const availableBowler = availableBowlers.bowlers.find(b => b.can_bowl);
+            if (availableBowler) {
+              selectBowlerMutation.mutate(availableBowler.id);
+            }
+          }}
+          isLoading={selectBowlerMutation.isPending}
+        />
+      )}
+
       <div className="min-h-screen bg-dark-950 flex flex-col pb-[280px]">
         <ScoreHeader
           state={state}
@@ -284,13 +325,6 @@ export function MatchPage() {
           <div className="px-4 mb-4">
             <PlayerStateCard bowler={state.bowler} />
           </div>
-
-          {state.is_collapse && (
-            <div className="mx-4 mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-xl flex items-center gap-2 text-red-400">
-              <AlertCircle size={18} />
-              <span className="text-sm font-bold uppercase tracking-wider">Collapse Mode Active!</span>
-            </div>
-          )}
 
           <ThisOver outcomes={state.this_over} />
         </div>

@@ -19,7 +19,7 @@ import {
   List,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { auctionApi, careerApi, type Player, type SkipCategoryPlayerResult } from '../api/client';
+import { auctionApi, careerApi, type Player, type SkipCategoryPlayerResult, type NextPlayerResponse } from '../api/client';
 import { PlayerListDrawer } from '../components/auction/PlayerListDrawer';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
@@ -90,13 +90,21 @@ export function AuctionPage() {
     onSuccess: (response) => {
       if (response.data.auction_finished) {
         navigate('/dashboard');
+        return;
       }
+
+      // Show notification when category changes
+      if (response.data.category_changed && response.data.category_display_name) {
+        showToast(`Now auctioning: ${response.data.category_display_name}`, 'info');
+      }
+
       setHasStarted(true);
       setPhase('user_turn');
       setAutoBidEnabled(false);
       setMaxBidCap('');
       queryClient.invalidateQueries({ queryKey: ['auction-state'] });
       queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
+      queryClient.invalidateQueries({ queryKey: ['remaining-players'] });
     },
   });
 
@@ -351,7 +359,7 @@ export function AuctionPage() {
               Mega Auction
             </h1>
             <p className="text-dark-400 mb-6">
-              Build your dream squad! You have ₹90 Cr to bid on 150+ players.
+              Build your dream squad! You have ₹90 Cr to bid on 230 quality players.
             </p>
 
             <div className="space-y-3">

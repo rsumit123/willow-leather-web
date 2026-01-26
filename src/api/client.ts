@@ -78,6 +78,17 @@ export interface AuctionState {
   players_sold: number;
   players_unsold: number;
   total_players: number;
+  current_category?: string;
+}
+
+export interface NextPlayerResponse {
+  auction_finished: boolean;
+  player?: PlayerBrief;
+  starting_bid?: number;
+  category?: string;
+  previous_category?: string;
+  category_changed: boolean;
+  category_display_name?: string;
 }
 
 export interface TeamAuctionState {
@@ -220,7 +231,6 @@ export interface PlayerStateBrief {
   sixes: number;
   is_out: boolean;
   is_settled: boolean;
-  is_nervous: boolean;
   is_on_fire: boolean;
 }
 
@@ -248,7 +258,6 @@ export interface MatchState {
   bowler?: BowlerStateBrief;
   pitch_type: string;
   is_pressure: boolean;
-  is_collapse: boolean;
   partnership_runs: number;
   this_over: string[];
   last_ball_commentary?: string;
@@ -262,6 +271,23 @@ export interface MatchState {
   is_user_batting: boolean;
   user_team_name: string;
   innings_just_changed: boolean;
+  can_change_bowler: boolean;
+}
+
+export interface AvailableBowler {
+  id: number;
+  name: string;
+  overs_bowled: number;
+  wickets: number;
+  runs_conceded: number;
+  economy: number;
+  can_bowl: boolean;
+  reason?: string;
+}
+
+export interface AvailableBowlersResponse {
+  bowlers: AvailableBowler[];
+  last_bowler_id?: number;
 }
 
 export interface PlayoffMatch {
@@ -330,7 +356,7 @@ export const auctionApi = {
   getState: (careerId: number) => api.get<AuctionState>(`/auction/${careerId}/state`),
   getTeamsState: (careerId: number) =>
     api.get<TeamAuctionState[]>(`/auction/${careerId}/teams`),
-  nextPlayer: (careerId: number) => api.post(`/auction/${careerId}/next-player`),
+  nextPlayer: (careerId: number) => api.post<NextPlayerResponse>(`/auction/${careerId}/next-player`),
   bid: (careerId: number) => api.post(`/auction/${careerId}/bid`),
   pass: (careerId: number) => api.post(`/auction/${careerId}/pass`),
   simulateBidding: (careerId: number) =>
@@ -392,4 +418,8 @@ export const matchApi = {
     api.post<MatchState>(`/match/${careerId}/match/${fixtureId}/simulate-over`, { aggression }),
   simulateInnings: (careerId: number, fixtureId: number) =>
     api.post<MatchState>(`/match/${careerId}/match/${fixtureId}/simulate-innings`),
+  getAvailableBowlers: (careerId: number, fixtureId: number) =>
+    api.get<AvailableBowlersResponse>(`/match/${careerId}/match/${fixtureId}/available-bowlers`),
+  selectBowler: (careerId: number, fixtureId: number, bowlerId: number) =>
+    api.post<MatchState>(`/match/${careerId}/match/${fixtureId}/select-bowler`, { bowler_id: bowlerId }),
 };

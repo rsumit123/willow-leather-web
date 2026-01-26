@@ -1,5 +1,5 @@
 import type { PlayerStateBrief, BowlerStateBrief } from '../../api/client';
-import { Zap, AlertCircle, Flame } from 'lucide-react';
+import { Zap, Flame } from 'lucide-react';
 import clsx from 'clsx';
 
 interface PlayerStateCardProps {
@@ -25,7 +25,6 @@ export function PlayerStateCard({ player, bowler, isStriker }: PlayerStateCardPr
             </h3>
             <div className="flex flex-wrap gap-1 mt-1">
               {player.is_settled && <span className="badge badge-blue text-[10px]">Settled</span>}
-              {player.is_nervous && <span className="badge badge-yellow text-[10px] flex items-center gap-0.5"><AlertCircle size={10} /> Nervous</span>}
               {player.is_on_fire && <span className="badge bg-orange-500/20 text-orange-400 border border-orange-500/30 text-[10px] flex items-center gap-0.5"><Flame size={10} /> On Fire</span>}
             </div>
           </div>
