@@ -397,6 +397,10 @@ export function AuctionPage() {
   const nextBidAmount = state?.current_bid ? state.current_bid + getBidIncrement(state.current_bid) : 0;
   const canAffordNextBid = userTeamState ? nextBidAmount <= userTeamState.max_bid_possible : false;
 
+  // Check overseas quota - user can have max 8 overseas players
+  const isOverseasQuotaReached = userTeamState && state?.current_player?.is_overseas && userTeamState.overseas_players >= 8;
+  const canBid = canAffordNextBid && !isOverseasQuotaReached;
+
   return (
     <>
       <PageHeader title="Auction" />
@@ -604,10 +608,10 @@ export function AuctionPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           onClick={handleBid}
-                          disabled={bidMutation.isPending || isUserHighestBidder || !canAffordNextBid}
+                          disabled={bidMutation.isPending || isUserHighestBidder || !canBid}
                           className={clsx(
                             "flex flex-col items-center justify-center gap-1 py-3",
-                            canAffordNextBid ? "btn-primary" : "btn-secondary opacity-50 cursor-not-allowed"
+                            canBid ? "btn-primary" : "btn-secondary opacity-50 cursor-not-allowed"
                           )}
                         >
                           <div className="flex items-center gap-2">
@@ -629,7 +633,13 @@ export function AuctionPage() {
                         </button>
                       </div>
 
-                      {!canAffordNextBid && !isUserHighestBidder && (
+                      {isOverseasQuotaReached && !isUserHighestBidder && (
+                        <p className="text-center text-ball-400 text-sm">
+                          Can't bid - overseas player quota reached (8/8)
+                        </p>
+                      )}
+
+                      {!canAffordNextBid && !isUserHighestBidder && !isOverseasQuotaReached && (
                         <p className="text-center text-amber-400 text-sm">
                           Can't bid - need to reserve ₹2Cr per slot for min squad ({Math.max(0, 18 - (userTeamState?.total_players || 0))} slots left)
                         </p>
@@ -968,6 +978,8 @@ export function AuctionPage() {
           skipResults={skipResults}
           onClearResults={() => {
             setSkipResults(null);
+            setShowPlayerList(false);  // Close the drawer
+            showToast('Category skipped! Tap "Next Player" to continue.', 'success');
             refetchState();
             refetchTeams();
             refetchRemainingPlayers();
