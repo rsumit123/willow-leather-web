@@ -338,6 +338,7 @@ export function MatchPage() {
           onSimulateOver={() => simulateOverMutation.mutate(aggression)}
           onSimulateInnings={() => simulateInningsMutation.mutate()}
           isLoading={playBallMutation.isPending || simulateOverMutation.isPending || simulateInningsMutation.isPending}
+          disabled={showBowlerSelect || showInningsChange}
         />
 
         {/* Scorecard Drawer */}

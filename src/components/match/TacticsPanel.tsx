@@ -8,6 +8,7 @@ interface TacticsPanelProps {
   onSimulateOver: () => void;
   onSimulateInnings: () => void;
   isLoading: boolean;
+  disabled?: boolean;
 }
 
 export function TacticsPanel({
@@ -16,8 +17,10 @@ export function TacticsPanel({
   onPlayBall,
   onSimulateOver,
   onSimulateInnings,
-  isLoading
+  isLoading,
+  disabled = false
 }: TacticsPanelProps) {
+  const isDisabled = isLoading || disabled;
   const options = [
     { id: 'defend', icon: Shield, color: 'text-blue-400', activeColor: 'bg-blue-500/20' },
     { id: 'balanced', label: 'Balanced', icon: Target, color: 'text-pitch-400', activeColor: 'bg-pitch-500/20' },
@@ -59,10 +62,10 @@ export function TacticsPanel({
         {/* Play Ball Button */}
         <button
           onClick={onPlayBall}
-          disabled={isLoading}
+          disabled={isDisabled}
           className="btn-primary w-full py-3.5 flex items-center justify-center gap-2 rounded-xl text-base font-semibold group"
         >
-          {isLoading ? (
+          {isDisabled ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
             <>
@@ -76,7 +79,7 @@ export function TacticsPanel({
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={onSimulateOver}
-            disabled={isLoading}
+            disabled={isDisabled}
             className="btn-secondary py-2.5 flex items-center justify-center gap-1.5 rounded-lg text-xs"
           >
             <SkipForward className="w-3.5 h-3.5" />
@@ -84,7 +87,7 @@ export function TacticsPanel({
           </button>
           <button
             onClick={onSimulateInnings}
-            disabled={isLoading}
+            disabled={isDisabled}
             className="btn-secondary py-2.5 flex items-center justify-center gap-1.5 rounded-lg text-xs"
           >
             <FastForward className="w-3.5 h-3.5" />
