@@ -14,7 +14,7 @@ export const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (import.meta.env.DEV) {
+    if (import.meta.env.VITE_DEV_MODE === 'true') {
       const url = error.config?.url || 'unknown';
       const method = error.config?.method?.toUpperCase() || 'REQUEST';
       const status = error.response?.status || 'Network Error';

@@ -6,10 +6,13 @@ import clsx from 'clsx';
 // Global function to show toasts from outside React (e.g., axios interceptors)
 let globalShowToast: ((message: string, type?: 'error' | 'info', details?: string) => void) | null = null;
 
+// Check if dev mode is enabled via environment variable
+const isDevModeEnabled = () => import.meta.env.VITE_DEV_MODE === 'true';
+
 export function showDevToast(message: string, type: 'error' | 'info' = 'error', details?: string) {
   if (globalShowToast) {
     globalShowToast(message, type, details);
-  } else if (import.meta.env.DEV) {
+  } else if (isDevModeEnabled()) {
     // Fallback to console if provider not mounted yet
     console.error('[DevToast]', message, details);
   }
@@ -44,8 +47,8 @@ interface DevToastProviderProps {
 export function DevToastProvider({ children }: DevToastProviderProps) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // Only enable in development mode
-  const isDev = import.meta.env.DEV;
+  // Only enable when VITE_DEV_MODE=true
+  const isDev = isDevModeEnabled();
 
   const nextIdRef = useRef(0);
 
