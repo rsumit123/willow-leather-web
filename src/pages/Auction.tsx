@@ -19,7 +19,7 @@ import {
   List,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { auctionApi, careerApi, type Player, type SkipCategoryPlayerResult, type NextPlayerResponse } from '../api/client';
+import { auctionApi, careerApi, type Player, type SkipCategoryPlayerResult } from '../api/client';
 import { PlayerListDrawer } from '../components/auction/PlayerListDrawer';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
