@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { AvailableBowler } from '../../api/client';
 import clsx from 'clsx';
@@ -6,43 +6,38 @@ import clsx from 'clsx';
 interface BowlerSelectionProps {
   bowlers: AvailableBowler[];
   onSelect: (bowlerId: number) => void;
-  onClose: () => void;
   isLoading: boolean;
 }
 
-export function BowlerSelection({ bowlers, onSelect, onClose, isLoading }: BowlerSelectionProps) {
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [autoSelectTimer, setAutoSelectTimer] = useState(5);
-
-  // Auto-select first available bowler after 5 seconds
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setAutoSelectTimer((prev) => {
-        if (prev <= 1) {
-          // Auto-select best available bowler
-          const availableBowler = bowlers.find(b => b.can_bowl);
-          if (availableBowler) {
-            onSelect(availableBowler.id);
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [bowlers, onSelect]);
-
-  const handleSelect = (bowler: AvailableBowler) => {
-    if (!bowler.can_bowl) return;
-    setSelectedId(bowler.id);
+// Format bowling type for display
+function formatBowlingType(type: string): string {
+  const typeMap: Record<string, string> = {
+    pace: 'Fast',
+    medium: 'Medium',
+    off_spin: 'Off Spin',
+    leg_spin: 'Leg Spin',
+    left_arm_spin: 'Left Arm Spin',
+    none: '',
   };
+  return typeMap[type] || type;
+}
 
-  const handleConfirm = () => {
-    if (selectedId) {
+export function BowlerSelection({ bowlers, onSelect, isLoading }: BowlerSelectionProps) {
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  const handleSelect = useCallback((bowler: AvailableBowler) => {
+    if (!bowler.can_bowl || isLoading) return;
+    setSelectedId(bowler.id);
+  }, [isLoading]);
+
+  const handleConfirm = useCallback(() => {
+    if (!selectedId || isLoading) return;
+    // Double-check the selected bowler can still bowl
+    const selectedBowler = bowlers.find(b => b.id === selectedId);
+    if (selectedBowler && selectedBowler.can_bowl) {
       onSelect(selectedId);
     }
-  };
+  }, [selectedId, isLoading, bowlers, onSelect]);
 
   return (
     <AnimatePresence>
@@ -58,13 +53,10 @@ export function BowlerSelection({ bowlers, onSelect, onClose, isLoading }: Bowle
           exit={{ scale: 0.9, opacity: 0 }}
           className="glass-card p-6 max-w-md w-full"
         >
-          <div className="flex justify-between items-center mb-4">
+          <div className="mb-4">
             <h2 className="text-xl font-display font-bold text-white">
               Select Bowler
             </h2>
-            <span className="text-sm text-dark-400">
-              Auto-select in {autoSelectTimer}s
-            </span>
           </div>
 
           <div className="space-y-2 max-h-[60vh] overflow-y-auto">
@@ -85,6 +77,7 @@ export function BowlerSelection({ bowlers, onSelect, onClose, isLoading }: Bowle
                 <div className="flex justify-between items-center">
                   <div>
                     <div className="font-medium text-white">{bowler.name}</div>
+                    <div className="text-xs text-dark-400">{formatBowlingType(bowler.bowling_type)}</div>
                     {!bowler.can_bowl && bowler.reason && (
                       <div className="text-xs text-red-400 mt-1">{bowler.reason}</div>
                     )}
@@ -102,19 +95,12 @@ export function BowlerSelection({ bowlers, onSelect, onClose, isLoading }: Bowle
             ))}
           </div>
 
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={onClose}
-              className="flex-1 btn-secondary"
-              disabled={isLoading}
-            >
-              Auto Select
-            </button>
+          <div className="mt-4">
             <button
               onClick={handleConfirm}
               disabled={!selectedId || isLoading}
               className={clsx(
-                "flex-1 btn-primary",
+                "w-full btn-primary",
                 (!selectedId || isLoading) && "opacity-50 cursor-not-allowed"
               )}
             >

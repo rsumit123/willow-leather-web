@@ -277,7 +277,8 @@ export interface MatchState {
 export interface AvailableBowler {
   id: number;
   name: string;
-  overs_bowled: number;
+  bowling_type: string; // "pace", "medium", "off_spin", "leg_spin", "left_arm_spin"
+  overs_bowled: string; // "2.3" format (overs.balls)
   wickets: number;
   runs_conceded: number;
   economy: number;
@@ -330,6 +331,72 @@ export interface BallResult {
   is_six: boolean;
   commentary: string;
   match_state: MatchState;
+}
+
+// Scorecard types
+export interface BatterScorecardEntry {
+  player_id: number;
+  player_name: string;
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
+  strike_rate: number;
+  is_out: boolean;
+  dismissal: string;
+  batting_position: number;
+}
+
+export interface BowlerScorecardEntry {
+  player_id: number;
+  player_name: string;
+  overs: string;
+  runs: number;
+  wickets: number;
+  economy: number;
+  wides: number;
+  no_balls: number;
+}
+
+export interface ExtrasBreakdown {
+  wides: number;
+  no_balls: number;
+  total: number;
+}
+
+export interface InningsScorecard {
+  batting_team_name: string;
+  bowling_team_name: string;
+  total_runs: number;
+  wickets: number;
+  overs: string;
+  run_rate: number;
+  extras: ExtrasBreakdown;
+  batters: BatterScorecardEntry[];
+  bowlers: BowlerScorecardEntry[];
+  did_not_bat: string[];
+}
+
+export interface ManOfTheMatch {
+  player_id: number;
+  player_name: string;
+  team_name: string;
+  performance_summary: string;
+  impact_score: number;
+}
+
+export interface LiveScorecardResponse {
+  innings1: InningsScorecard | null;
+  innings2: InningsScorecard | null;
+  current_innings: number;
+}
+
+export interface MatchCompletionResponse {
+  winner_name: string;
+  margin: string;
+  innings1: InningsScorecard;
+  innings2: InningsScorecard;
+  man_of_the_match: ManOfTheMatch;
 }
 
 // API functions
@@ -422,4 +489,8 @@ export const matchApi = {
     api.get<AvailableBowlersResponse>(`/match/${careerId}/match/${fixtureId}/available-bowlers`),
   selectBowler: (careerId: number, fixtureId: number, bowlerId: number) =>
     api.post<MatchState>(`/match/${careerId}/match/${fixtureId}/select-bowler`, { bowler_id: bowlerId }),
+  getScorecard: (careerId: number, fixtureId: number) =>
+    api.get<LiveScorecardResponse>(`/match/${careerId}/match/${fixtureId}/scorecard`),
+  getMatchResult: (careerId: number, fixtureId: number) =>
+    api.get<MatchCompletionResponse>(`/match/${careerId}/match/${fixtureId}/result`),
 };

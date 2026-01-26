@@ -17,37 +17,32 @@ export function BallDisplay({ outcome, commentary }: BallDisplayProps) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center py-8 px-4 text-center min-h-[200px]">
+    <div className="px-4 py-4">
       <AnimatePresence mode="wait">
-        {outcome && (
-          <motion.div
-            key={outcome}
-            initial={{ scale: 0, rotate: -45 }}
-            animate={{ scale: 1, rotate: 0 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 500, damping: 25 }}
-            className={clsx(
-              "w-20 h-20 rounded-full flex items-center justify-center text-3xl font-display font-black text-white shadow-2xl mb-6",
-              getOutcomeColor(outcome)
-            )}
-          >
-            {outcome}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence mode="wait">
-        {commentary && (
-          <motion.p
-            key={commentary}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="text-lg font-medium text-white max-w-sm leading-relaxed"
-          >
-            {commentary}
-          </motion.p>
-        )}
+        <motion.div
+          key={`${outcome}-${commentary}`}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ duration: 0.2 }}
+          className="flex items-center gap-3 bg-dark-800/60 backdrop-blur-sm rounded-xl px-4 py-3 border border-dark-700/50"
+        >
+          {outcome && (
+            <div
+              className={clsx(
+                "w-10 h-10 rounded-full flex items-center justify-center text-lg font-display font-bold text-white flex-shrink-0 shadow-lg",
+                getOutcomeColor(outcome)
+              )}
+            >
+              {outcome}
+            </div>
+          )}
+          {commentary && (
+            <p className="text-sm text-dark-200 leading-snug line-clamp-2 flex-1">
+              {commentary}
+            </p>
+          )}
+        </motion.div>
       </AnimatePresence>
     </div>
   );

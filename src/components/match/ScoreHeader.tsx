@@ -11,66 +11,70 @@ interface ScoreHeaderProps {
 export function ScoreHeader({ state, team1Name, team2Name }: ScoreHeaderProps) {
   // Use batting_team_name from state if available, otherwise fallback to old logic
   const battingTeam = state.batting_team_name || (state.innings === 1 ? team1Name : team2Name);
-  const bowlingTeam = state.bowling_team_name || (state.innings === 1 ? team2Name : team1Name);
+
+  // Get short team code (first 2-3 chars)
+  const teamCode = battingTeam.substring(0, 3).toUpperCase();
 
   return (
-    <div className="sticky top-0 z-40 w-full bg-dark-950/80 backdrop-blur-md border-b border-dark-800 px-4 py-3 safe-top">
-      <div className="flex flex-col gap-1">
-        {/* Team indicator badge */}
-        <div className="flex items-center gap-2 mb-1">
-          <span
-            className={clsx(
-              'px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider',
-              state.is_user_batting
-                ? 'bg-pitch-500/20 text-pitch-400'
-                : 'bg-dark-700 text-dark-400'
-            )}
-          >
-            {state.is_user_batting ? 'YOUR TEAM BATTING' : 'OPPONENT BATTING'}
-          </span>
+    <div className="mx-4 mt-4 safe-top">
+      {/* Floating pill card */}
+      <div className={clsx(
+        "rounded-2xl border overflow-hidden",
+        state.is_user_batting
+          ? "bg-gradient-to-r from-pitch-500/10 to-dark-800/80 border-pitch-500/30"
+          : "bg-dark-800/80 border-dark-700/50"
+      )}>
+        {/* Team indicator strip */}
+        <div className={clsx(
+          "px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest",
+          state.is_user_batting
+            ? "bg-pitch-500/20 text-pitch-400"
+            : "bg-dark-700/50 text-dark-400"
+        )}>
+          {state.is_user_batting ? 'Your Team Batting' : 'Opponent Batting'}
         </div>
 
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <h2 className="text-sm font-medium text-dark-400 uppercase tracking-wider">
-              <span className={state.is_user_batting ? 'text-pitch-400' : ''}>{battingTeam}</span>
-              {' vs '}
-              <span className={!state.is_user_batting ? 'text-pitch-400' : ''}>{bowlingTeam}</span>
-            </h2>
+        {/* Main score area */}
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between">
             <div className="flex items-baseline gap-2">
+              <span className="text-sm font-bold text-white uppercase tracking-wide">
+                {teamCode}
+              </span>
               <motion.span
                 key={state.runs + state.wickets}
-                initial={{ y: -10, opacity: 0 }}
+                initial={{ y: -5, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                className="text-2xl font-display font-bold text-white"
+                className="text-xl font-display font-bold text-white"
               >
                 {state.runs}/{state.wickets}
               </motion.span>
-              <span className="text-lg text-dark-400 font-medium">
+              <span className="text-sm text-dark-400">
                 ({state.overs})
               </span>
             </div>
-          </div>
 
-          <div className="text-right">
-            <div className="text-xs text-dark-400 font-medium uppercase tracking-wider">
-              CRR: {state.run_rate?.toFixed(2) || '0.00'}
-            </div>
-            {state.required_rate != null && (
-              <div className="text-sm font-bold text-pitch-400">
-                RRR: {state.required_rate.toFixed(2)}
+            <div className="flex items-center gap-3 text-right">
+              <div className="text-xs text-dark-400">
+                <span className="text-dark-500">CRR </span>
+                <span className="font-semibold text-white">{state.run_rate?.toFixed(2) || '0.00'}</span>
               </div>
-            )}
+              {state.required_rate != null && (
+                <div className="text-xs">
+                  <span className="text-dark-500">RRR </span>
+                  <span className="font-semibold text-pitch-400">{state.required_rate.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        {state.target && (
-          <div className="text-xs font-medium text-dark-300">
-            Target: <span className="text-white">{state.target}</span> • 
-            Need <span className="text-pitch-400">{state.target - state.runs}</span> runs from 
-            <span className="text-white"> {state.balls_remaining}</span> balls
-          </div>
-        )}
+          {state.target && (
+            <div className="text-[11px] text-dark-400 mt-2 pt-2 border-t border-dark-700/50">
+              Need <span className="text-pitch-400 font-semibold">{state.target - state.runs}</span> from
+              <span className="text-white font-medium"> {state.balls_remaining}</span> balls
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

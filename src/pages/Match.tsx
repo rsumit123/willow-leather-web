@@ -6,12 +6,15 @@ import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { ScoreHeader } from '../components/match/ScoreHeader';
 import { BallDisplay } from '../components/match/BallDisplay';
-import { PlayerStateCard } from '../components/match/PlayerStateCard';
+import { BattingSection } from '../components/match/BattingSection';
+import { BowlingSection } from '../components/match/BowlingSection';
 import { ThisOver } from '../components/match/ThisOver';
 import { TacticsPanel } from '../components/match/TacticsPanel';
 import { TossScreen } from '../components/match/TossScreen';
 import { BowlerSelection } from '../components/match/BowlerSelection';
-import { Trophy, Home } from 'lucide-react';
+import { ScorecardDrawer } from '../components/match/ScorecardDrawer';
+import { MatchCompletionScreen } from '../components/match/MatchCompletionScreen';
+import { ClipboardList } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 
@@ -27,6 +30,7 @@ export function MatchPage() {
   const [showInningsChange, setShowInningsChange] = useState(false);
   const [inningsChangeInfo, setInningsChangeInfo] = useState<{ target: number; battingTeam: string } | null>(null);
   const [showBowlerSelect, setShowBowlerSelect] = useState(false);
+  const [showScorecard, setShowScorecard] = useState(false);
 
   const fid = parseInt(fixtureId || '0');
 
@@ -141,11 +145,28 @@ export function MatchPage() {
     }
   });
 
-  // Get available bowlers query
-  const { data: availableBowlers } = useQuery({
+  // Get available bowlers query - disable caching to always get fresh data
+  const { data: availableBowlers, isFetching: isFetchingBowlers } = useQuery({
     queryKey: ['available-bowlers', careerId, fid],
     queryFn: () => matchApi.getAvailableBowlers(careerId!, fid).then((r) => r.data),
     enabled: !!careerId && !!fid && showBowlerSelect,
+    staleTime: 0,
+    gcTime: 0, // Don't cache this data at all
+  });
+
+  // Get live scorecard query
+  const { data: scorecard, isLoading: scorecardLoading } = useQuery({
+    queryKey: ['scorecard', careerId, fid],
+    queryFn: () => matchApi.getScorecard(careerId!, fid).then((r) => r.data),
+    enabled: !!careerId && !!fid && showScorecard && !showToss,
+  });
+
+  // Get match result query (for completed matches)
+  const { data: matchResult } = useQuery({
+    queryKey: ['match-result', careerId, fid],
+    queryFn: () => matchApi.getMatchResult(careerId!, fid).then((r) => r.data),
+    enabled: !!careerId && !!fid && state?.status === 'completed',
+    retry: false,
   });
 
   // Select bowler mutation
@@ -160,9 +181,11 @@ export function MatchPage() {
   // Show bowler selection when can_change_bowler is true and user is bowling
   useEffect(() => {
     if (state?.can_change_bowler && !showBowlerSelect && !showInningsChange) {
+      // Invalidate cached bowler data before showing modal
+      queryClient.invalidateQueries({ queryKey: ['available-bowlers', careerId, fid] });
       setShowBowlerSelect(true);
     }
-  }, [state?.can_change_bowler, showInningsChange]);
+  }, [state?.can_change_bowler, showInningsChange, queryClient, careerId, fid]);
 
   // Check if match is already in progress (skip toss)
   // If there's an error (404 - session lost), show toss screen to restart
@@ -215,40 +238,18 @@ export function MatchPage() {
   };
 
   if (state.status === 'completed') {
-    return (
-      <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center p-6 text-center">
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="glass-card p-8 max-w-md w-full"
-        >
-          <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-yellow-500/20 flex items-center justify-center">
-            <Trophy className="w-10 h-10 text-yellow-500" />
-          </div>
-          <h1 className="text-3xl font-display font-bold text-white mb-2">
-            Match Over!
-          </h1>
-          <p className="text-pitch-400 font-bold text-xl mb-4">
-            {state.winner_name} won by {state.margin}
-          </p>
-          
-          <div className="space-y-4 pt-4 border-t border-dark-800">
-            <div className="flex justify-between text-dark-400">
-              <span>Final Score</span>
-              <span className="text-white font-bold">{state.runs}/{state.wickets}</span>
-            </div>
-          </div>
+    // Show enhanced completion screen if we have match result data
+    if (matchResult) {
+      return (
+        <MatchCompletionScreen
+          result={matchResult}
+          onBackToDashboard={() => navigate('/dashboard')}
+        />
+      );
+    }
 
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="btn-primary w-full mt-8 flex items-center justify-center gap-2"
-          >
-            <Home className="w-5 h-5" />
-            Back to Dashboard
-          </button>
-        </motion.div>
-      </div>
-    );
+    // Fallback to loading while fetching result
+    return <Loading fullScreen text="Loading match result..." />;
   }
 
   return (
@@ -289,42 +290,43 @@ export function MatchPage() {
       </AnimatePresence>
 
       {/* Bowler Selection Modal */}
-      {showBowlerSelect && availableBowlers && (
+      {showBowlerSelect && availableBowlers && !isFetchingBowlers && (
         <BowlerSelection
           bowlers={availableBowlers.bowlers}
           onSelect={(bowlerId) => selectBowlerMutation.mutate(bowlerId)}
-          onClose={() => {
-            // Auto-select first available bowler
-            const availableBowler = availableBowlers.bowlers.find(b => b.can_bowl);
-            if (availableBowler) {
-              selectBowlerMutation.mutate(availableBowler.id);
-            }
-          }}
           isLoading={selectBowlerMutation.isPending}
         />
       )}
 
-      <div className="min-h-screen bg-dark-950 flex flex-col pb-[280px]">
-        <ScoreHeader
-          state={state}
-          team1Name={fixture?.team1_name || 'Team 1'}
-          team2Name={fixture?.team2_name || 'Team 2'}
-        />
+      <div className="min-h-screen bg-dark-950 flex flex-col pb-[200px]">
+        <div className="relative">
+          <ScoreHeader
+            state={state}
+            team1Name={fixture?.team1_name || 'Team 1'}
+            team2Name={fixture?.team2_name || 'Team 2'}
+          />
+          {/* Scorecard button - positioned in top-right of header */}
+          <button
+            onClick={() => setShowScorecard(true)}
+            className="absolute top-6 right-6 z-50 p-2 rounded-lg bg-dark-700/80 hover:bg-dark-600 transition-colors border border-dark-600/50"
+            title="View Scorecard"
+          >
+            <ClipboardList className="w-4 h-4 text-pitch-400" />
+          </button>
+        </div>
 
-        <div className="flex-1 flex flex-col max-w-lg mx-auto w-full">
-          <BallDisplay 
-            outcome={lastBall?.outcome} 
-            commentary={lastBall?.commentary || state.last_ball_commentary} 
+        <div className="flex-1 flex flex-col max-w-lg mx-auto w-full space-y-4">
+          <BallDisplay
+            outcome={lastBall?.outcome}
+            commentary={lastBall?.commentary || state.last_ball_commentary}
           />
 
-          <div className="px-4 flex gap-3 mb-4">
-            <PlayerStateCard player={state.striker} isStriker={true} />
-            <PlayerStateCard player={state.non_striker} />
-          </div>
+          <BattingSection
+            striker={state.striker}
+            nonStriker={state.non_striker}
+          />
 
-          <div className="px-4 mb-4">
-            <PlayerStateCard bowler={state.bowler} />
-          </div>
+          <BowlingSection bowler={state.bowler} />
 
           <ThisOver outcomes={state.this_over} />
         </div>
@@ -336,6 +338,14 @@ export function MatchPage() {
           onSimulateOver={() => simulateOverMutation.mutate(aggression)}
           onSimulateInnings={() => simulateInningsMutation.mutate()}
           isLoading={playBallMutation.isPending || simulateOverMutation.isPending || simulateInningsMutation.isPending}
+        />
+
+        {/* Scorecard Drawer */}
+        <ScorecardDrawer
+          isOpen={showScorecard}
+          onClose={() => setShowScorecard(false)}
+          scorecard={scorecard || null}
+          isLoading={scorecardLoading}
         />
       </div>
     </ErrorBoundary>
