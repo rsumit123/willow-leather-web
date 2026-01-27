@@ -178,18 +178,18 @@ export function MatchPage() {
     },
   });
 
-  // Show bowler selection when can_change_bowler is true and user is bowling
-  // Also show if no bowler is selected (bowler is null) and user should be selecting
+  // Show bowler selection modal when:
+  // 1. can_change_bowler is true (start of over, user is bowling)
+  // 2. No bowler is currently selected (prevents reopening after selection)
+  // 3. Modal is not already showing
+  // 4. Not showing innings change modal
   useEffect(() => {
-    const shouldShowModal = state?.can_change_bowler && !showBowlerSelect && !showInningsChange;
-    const noBowlerSelected = state?.can_change_bowler && !state?.bowler && !showBowlerSelect && !showInningsChange;
-
-    if (shouldShowModal || noBowlerSelected) {
+    if (state?.can_change_bowler && !state?.bowler && !showBowlerSelect && !showInningsChange) {
       // Invalidate cached bowler data before showing modal
       queryClient.invalidateQueries({ queryKey: ['available-bowlers', careerId, fid] });
       setShowBowlerSelect(true);
     }
-  }, [state?.can_change_bowler, state?.bowler, showInningsChange, queryClient, careerId, fid]);
+  }, [state?.can_change_bowler, state?.bowler, showBowlerSelect, showInningsChange, queryClient, careerId, fid]);
 
   // Check if match is already in progress (skip toss)
   // If there's an error (404 - session lost), show toss screen to restart
