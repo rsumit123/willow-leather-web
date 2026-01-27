@@ -205,23 +205,35 @@ export function DashboardPage() {
     (playoffBracket.final.team1 === userTeam?.short_name || playoffBracket.final.team2 === userTeam?.short_name) &&
     !isChampion;
 
-  // Check if eliminated from playoffs
-  const eliminatedInQ1 = playoffBracket?.qualifier_1?.status === 'completed' &&
-    playoffBracket?.qualifier_2?.status === 'completed' &&
-    playoffBracket.qualifier_1.winner !== userTeam?.short_name &&
-    playoffBracket.qualifier_2.winner !== userTeam?.short_name &&
-    (playoffBracket.qualifier_1.team1 === userTeam?.short_name || playoffBracket.qualifier_1.team2 === userTeam?.short_name);
+  // Check if user's team played in each playoff match
+  const playedInQ1 = playoffBracket?.qualifier_1?.team1 === userTeam?.short_name ||
+    playoffBracket?.qualifier_1?.team2 === userTeam?.short_name;
+  const playedInElim = playoffBracket?.eliminator?.team1 === userTeam?.short_name ||
+    playoffBracket?.eliminator?.team2 === userTeam?.short_name;
+  const playedInQ2 = playoffBracket?.qualifier_2?.team1 === userTeam?.short_name ||
+    playoffBracket?.qualifier_2?.team2 === userTeam?.short_name;
 
+  // Eliminated = lost in Eliminator, or lost in Q2, or lost in Final (but not runner-up handling)
   const eliminatedInElim = playoffBracket?.eliminator?.status === 'completed' &&
-    playoffBracket.eliminator.winner !== userTeam?.short_name &&
-    (playoffBracket.eliminator.team1 === userTeam?.short_name || playoffBracket.eliminator.team2 === userTeam?.short_name);
+    playedInElim &&
+    playoffBracket.eliminator.winner !== userTeam?.short_name;
 
   const eliminatedInQ2 = playoffBracket?.qualifier_2?.status === 'completed' &&
-    playoffBracket.qualifier_2.winner !== userTeam?.short_name &&
-    (playoffBracket.qualifier_2.team1 === userTeam?.short_name || playoffBracket.qualifier_2.team2 === userTeam?.short_name);
+    playedInQ2 &&
+    playoffBracket.qualifier_2.winner !== userTeam?.short_name;
 
-  const isEliminated = eliminatedInQ1 || eliminatedInElim || eliminatedInQ2;
+  // Lost Q1 but waiting for Q2 (not eliminated yet)
+  const lostQ1WaitingForQ2 = playoffBracket?.qualifier_1?.status === 'completed' &&
+    playedInQ1 &&
+    playoffBracket.qualifier_1.winner !== userTeam?.short_name &&
+    !playoffBracket?.qualifier_2?.team1; // Q2 not generated yet
+
+  const isEliminated = eliminatedInElim || eliminatedInQ2;
   const didNotQualify = careerData?.status === 'playoffs' && !qualifiedForPlayoffs;
+
+  // Check if there are remaining playoff matches to watch
+  const playoffsComplete = playoffBracket?.final?.status === 'completed';
+  const hasMorePlayoffMatches = careerData?.status === 'playoffs' && !playoffsComplete;
 
   return (
     <>
@@ -265,6 +277,32 @@ export function DashboardPage() {
           </motion.div>
         )}
 
+        {/* Lost Q1 - Waiting for Q2 Banner */}
+        {lostQ1WaitingForQ2 && !isEliminated && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-5 text-center border-amber-500/30 bg-amber-500/5"
+          >
+            <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-amber-500/20 flex items-center justify-center">
+              <Calendar className="w-8 h-8 text-amber-500" />
+            </div>
+            <h2 className="text-lg font-semibold text-amber-400 mb-1">
+              Waiting for Qualifier 2
+            </h2>
+            <p className="text-dark-400 text-sm mb-3">
+              {userTeam?.short_name} lost Qualifier 1 but gets another chance! Waiting for the Eliminator to finish.
+            </p>
+            <button
+              onClick={() => simulateNextPlayoffMutation.mutate()}
+              disabled={simulateNextPlayoffMutation.isPending}
+              className="btn-primary text-sm"
+            >
+              {simulateNextPlayoffMutation.isPending ? 'Simulating...' : 'Simulate Eliminator'}
+            </button>
+          </motion.div>
+        )}
+
         {/* Eliminated Banner */}
         {(isEliminated || didNotQualify) && !isChampion && !isRunnerUp && (
           <motion.div
@@ -276,15 +314,15 @@ export function DashboardPage() {
               <XCircle className="w-8 h-8 text-ball-500" />
             </div>
             <h2 className="text-lg font-semibold text-ball-400 mb-1">
-              {didNotQualify ? 'Did Not Qualify' : 'Eliminated'}
+              {didNotQualify ? 'Did Not Qualify' : 'Season Over'}
             </h2>
             <p className="text-dark-400 text-sm mb-3">
               {didNotQualify
                 ? `${userTeam?.short_name} finished ${userStanding?.position}${getOrdinalSuffix(userStanding?.position || 0)} and missed the playoffs`
-                : `${userTeam?.short_name} has been knocked out of the playoffs`
+                : `${userTeam?.short_name} has been knocked out. Better luck next season!`
               }
             </p>
-            {careerData?.status === 'playoffs' && (
+            {hasMorePlayoffMatches && (
               <div className="flex gap-2 justify-center">
                 <button
                   onClick={() => simulateNextPlayoffMutation.mutate()}
@@ -301,6 +339,11 @@ export function DashboardPage() {
                   {simulateAllPlayoffsMutation.isPending ? 'Simulating...' : 'Skip to Finals'}
                 </button>
               </div>
+            )}
+            {!hasMorePlayoffMatches && careerData?.status === 'playoffs' && (
+              <p className="text-dark-500 text-xs mt-2">
+                The tournament has concluded. Check the bracket for final results.
+              </p>
             )}
           </motion.div>
         )}

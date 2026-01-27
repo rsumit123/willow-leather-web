@@ -179,13 +179,17 @@ export function MatchPage() {
   });
 
   // Show bowler selection when can_change_bowler is true and user is bowling
+  // Also show if no bowler is selected (bowler is null) and user should be selecting
   useEffect(() => {
-    if (state?.can_change_bowler && !showBowlerSelect && !showInningsChange) {
+    const shouldShowModal = state?.can_change_bowler && !showBowlerSelect && !showInningsChange;
+    const noBowlerSelected = state?.can_change_bowler && !state?.bowler && !showBowlerSelect && !showInningsChange;
+
+    if (shouldShowModal || noBowlerSelected) {
       // Invalidate cached bowler data before showing modal
       queryClient.invalidateQueries({ queryKey: ['available-bowlers', careerId, fid] });
       setShowBowlerSelect(true);
     }
-  }, [state?.can_change_bowler, showInningsChange, queryClient, careerId, fid]);
+  }, [state?.can_change_bowler, state?.bowler, showInningsChange, queryClient, careerId, fid]);
 
   // Check if match is already in progress (skip toss)
   // If there's an error (404 - session lost), show toss screen to restart
@@ -211,16 +215,19 @@ export function MatchPage() {
     }
   };
 
-  // Show toss screen
+  // Show toss screen (wait for fixture to load first to avoid flicker)
   if (showToss && !state) {
+    if (!fixture) {
+      return <Loading fullScreen text="Loading match..." />;
+    }
     return (
       <TossScreen
         onToss={() => tossMutation.mutate()}
         tossResult={tossResult}
         onElect={handleElect}
         isLoading={tossMutation.isPending || startMutation.isPending}
-        team1Name={fixture?.team1_name || 'Team 1'}
-        team2Name={fixture?.team2_name || 'Team 2'}
+        team1Name={fixture.team1_name}
+        team2Name={fixture.team2_name}
       />
     );
   }
