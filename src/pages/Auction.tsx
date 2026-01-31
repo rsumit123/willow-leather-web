@@ -17,6 +17,15 @@ import {
   AlertCircle,
   SkipForward,
   List,
+  Users,
+  Target,
+  Hammer,
+  Hand,
+  Shield,
+  ChevronRight,
+  Info,
+  RotateCcw,
+  Ban,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { auctionApi, careerApi, type Player, type SkipCategoryPlayerResult } from '../api/client';
@@ -49,6 +58,8 @@ export function AuctionPage() {
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
   const [hasStarted, setHasStarted] = useState(false);
+  const [showAuctionInfo, setShowAuctionInfo] = useState(true);
+  const [isManualBidding, setIsManualBidding] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'info' | 'success' } | null>(null);
   const [capExceededAmount, setCapExceededAmount] = useState<number>(0);
   const [capExceededReason, setCapExceededReason] = useState<'manual_cap' | 'budget_reserve'>('manual_cap');
@@ -110,46 +121,7 @@ export function AuctionPage() {
     },
   });
 
-  // User bid
-  const bidMutation = useMutation({
-    mutationFn: () => auctionApi.bid(careerId!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['auction-state'] });
-      queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
-    },
-    onError: (error: any) => {
-      const message = error.response?.data?.detail || 'Cannot place bid';
-      showToast(message, 'error');
-      setAutoBidEnabled(false);
-    },
-  });
 
-  // Simulate AI bidding round
-  const simulateMutation = useMutation({
-    mutationFn: () => auctionApi.simulateBidding(careerId!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['auction-state'] });
-      queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
-    },
-  });
-
-  // Finalize player
-  const finalizeMutation = useMutation({
-    mutationFn: () => auctionApi.finalizePlayer(careerId!),
-    onSuccess: (response) => {
-      const result = response.data;
-      setLastResult({
-        player: result.player_name,
-        sold: result.is_sold,
-        team: result.sold_to_team_name || undefined,
-        price: result.sold_price,
-      });
-      setPhase('auction_end');
-      setAutoBidEnabled(false);
-      queryClient.invalidateQueries({ queryKey: ['auction-state'] });
-      queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
-    },
-  });
 
   // Auto-complete
   const autoCompleteMutation = useMutation({
@@ -246,13 +218,16 @@ export function AuctionPage() {
   // Get user team state
   const userTeamState = teams?.find((t) => career?.user_team?.short_name === t.team_name);
 
-  // Calculate max affordable bid
+  // Calculate max affordable bid - no reserve, user can bid their full budget
   const calculateMaxAffordable = () => {
     if (!userTeamState) return 0;
-    const minPlayersNeeded = Math.max(0, 18 - userTeamState.total_players);
-    const reservedAmount = minPlayersNeeded * 5000000; // 50L per player minimum
-    return Math.max(0, userTeamState.remaining_budget - reservedAmount);
+    return userTeamState.remaining_budget;
   };
+
+  // Check if user is at risk of not meeting minimum 11 players
+  const playersNeededFor11 = Math.max(0, 11 - (userTeamState?.total_players || 0));
+  const isAtRiskOfNotMeeting11 = playersNeededFor11 > 0 &&
+    (userTeamState?.remaining_budget || 0) < playersNeededFor11 * 5000000; // 50L base price minimum
 
   // Parse max bid cap from input
   const parseMaxBidCap = (): number => {
@@ -276,11 +251,48 @@ export function AuctionPage() {
       setPhase('ai_simulation');
       autoBidMutation.mutate(maxBid);
     } else {
-      // Single manual bid
+      // Streamlined manual bid flow:
+      // 1. Place user bid
+      // 2. Simulate AI bidding
+      // 3. Check if user still highest bidder
+      // 4. If yes, auto-finalize. If no, back to user turn.
       try {
-        await bidMutation.mutateAsync();
-      } catch (error) {
-        // Error handled in mutation onError
+        setIsManualBidding(true);
+
+        // Step 1: Place user's bid
+        await auctionApi.bid(careerId!);
+
+        // Step 2: Simulate AI bidding round
+        await auctionApi.simulateBidding(careerId!);
+
+        // Step 3: Fetch updated state to check who's highest bidder
+        const newState = await auctionApi.getState(careerId!);
+        const isUserStillHighest = newState.data.current_bidder_team_name === career?.user_team?.short_name;
+
+        if (isUserStillHighest) {
+          // Step 4a: No AI bid - auto-finalize
+          const result = await auctionApi.finalizePlayer(careerId!);
+          setLastResult({
+            player: result.data.player_name,
+            sold: result.data.is_sold,
+            team: result.data.sold_to_team_name || undefined,
+            price: result.data.sold_price,
+          });
+          setPhase('auction_end');
+          showToast('You won the auction!', 'success');
+        } else {
+          // Step 4b: AI outbid - back to user turn
+          showToast(`Outbid by ${newState.data.current_bidder_team_name}!`, 'info');
+        }
+
+        // Refresh all data
+        queryClient.invalidateQueries({ queryKey: ['auction-state'] });
+        queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
+      } catch (error: any) {
+        const message = error.response?.data?.detail || 'Bid failed';
+        showToast(message, 'error');
+      } finally {
+        setIsManualBidding(false);
       }
     }
   };
@@ -342,8 +354,182 @@ export function AuctionPage() {
     return <Loading fullScreen text={autoCompleteMutation.isPending ? "Completing auction..." : "Loading auction..."} />;
   }
 
-  // Not started state
+  // Not started state - show info page first, then start options
   if (state?.status === 'not_started') {
+    // Pre-auction info screen
+    if (showAuctionInfo) {
+      return (
+        <>
+          <PageHeader title="Auction Guide" />
+          <div className="min-h-screen bg-dark-950 pb-24">
+            <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
+              {/* Header */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center mb-6"
+              >
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-pitch-500/20 to-pitch-600/20 flex items-center justify-center">
+                  <Gavel className="w-8 h-8 text-pitch-500" />
+                </div>
+                <h1 className="text-2xl font-display font-bold text-white mb-2">
+                  Mega Auction
+                </h1>
+                <p className="text-dark-400">
+                  Build your dream squad wisely!
+                </p>
+              </motion.div>
+
+              {/* Budget & Pool Info */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="glass-card p-4"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-pitch-500/20 flex items-center justify-center">
+                    <Star className="w-5 h-5 text-pitch-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">Your Budget</h3>
+                    <p className="text-2xl font-bold text-pitch-400">₹90 Crore</p>
+                  </div>
+                </div>
+                <p className="text-sm text-dark-400">
+                  230 quality players available • Minimum 18 players to complete auction
+                </p>
+              </motion.div>
+
+              {/* Squad Rules */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="glass-card p-4"
+              >
+                <h3 className="font-semibold text-white mb-3 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-blue-400" />
+                  Squad Rules
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-start gap-3 text-sm">
+                    <Globe className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-white">Maximum 8 Overseas Players</p>
+                      <p className="text-dark-400 text-xs">International players are marked with a globe icon</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 text-sm">
+                    <Users className="w-4 h-4 text-purple-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-white">Minimum 11 Players to Play</p>
+                      <p className="text-dark-400 text-xs">You need at least 11 players to participate in matches</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 text-sm">
+                    <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-white">Build a Balanced Squad</p>
+                      <p className="text-dark-400 text-xs">Include wicket-keepers, batsmen, all-rounders, and bowlers</p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Traits Explanation */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="glass-card p-4"
+              >
+                <h3 className="font-semibold text-white mb-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-yellow-400" />
+                  Player Traits
+                </h3>
+                <p className="text-sm text-dark-400 mb-3">
+                  Some players have special traits that affect their performance. Tap on traits during auction to learn more.
+                </p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <Zap className="w-4 h-4 text-blue-400" />
+                    <span className="text-sm text-blue-300">Clutch</span>
+                    <span className="text-xs text-dark-400 ml-auto">Performs under pressure</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                    <Target className="w-4 h-4 text-orange-400" />
+                    <span className="text-sm text-orange-300">Finisher</span>
+                    <span className="text-xs text-dark-400 ml-auto">Excels at closing innings</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                    <Hammer className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm text-purple-300">Partnership Breaker</span>
+                    <span className="text-xs text-dark-400 ml-auto">Breaks batting partnerships</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <Hand className="w-4 h-4 text-emerald-400" />
+                    <span className="text-sm text-emerald-300">Safe Hands</span>
+                    <span className="text-xs text-dark-400 ml-auto">Excellent fielder</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                    <AlertCircle className="w-4 h-4 text-red-400" />
+                    <span className="text-sm text-red-300">Pressure Sensitive</span>
+                    <span className="text-xs text-dark-400 ml-auto">May underperform when it matters</span>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Bidding Tips */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="glass-card p-4"
+              >
+                <h3 className="font-semibold text-white mb-3 flex items-center gap-2">
+                  <Info className="w-4 h-4 text-amber-400" />
+                  Bidding Tips
+                </h3>
+                <ul className="space-y-2 text-sm text-dark-300">
+                  <li className="flex items-start gap-2">
+                    <span className="text-pitch-400">•</span>
+                    Don't overspend early - save budget for key players
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-pitch-400">•</span>
+                    Use Auto-Bid to set your maximum and let it bid for you
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-pitch-400">•</span>
+                    Watch other teams' budgets to spot bargains
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-pitch-400">•</span>
+                    Consider batting order when picking players with traits
+                  </li>
+                </ul>
+              </motion.div>
+            </div>
+
+            {/* Fixed bottom button */}
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-dark-950 via-dark-950 to-transparent safe-bottom">
+              <div className="max-w-lg mx-auto">
+                <button
+                  onClick={() => setShowAuctionInfo(false)}
+                  className="btn-primary w-full flex items-center justify-center gap-2"
+                >
+                  Continue to Auction
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    // Start auction screen
     return (
       <>
         <PageHeader title="Auction" />
@@ -358,10 +544,10 @@ export function AuctionPage() {
             </div>
 
             <h1 className="text-2xl font-display font-bold text-white mb-2">
-              Mega Auction
+              Ready to Begin?
             </h1>
             <p className="text-dark-400 mb-6">
-              Build your dream squad! You have ₹90 Cr to bid on 230 quality players.
+              You have ₹90 Cr to build your squad. Good luck!
             </p>
 
             <div className="space-y-3">
@@ -382,6 +568,13 @@ export function AuctionPage() {
                 <FastForward className="w-5 h-5" />
                 Auto-Complete (Skip)
               </button>
+
+              <button
+                onClick={() => setShowAuctionInfo(true)}
+                className="w-full text-center text-dark-400 text-sm py-2 hover:text-dark-300"
+              >
+                ← Back to auction guide
+              </button>
             </div>
           </motion.div>
         </div>
@@ -389,8 +582,68 @@ export function AuctionPage() {
     );
   }
 
-  // Completed state
+  // Completed state - check if user meets minimum requirements
   if (state?.status === 'completed') {
+    const userPlayerCount = userTeamState?.total_players || 0;
+    const hasMinimumPlayers = userPlayerCount >= 11;
+
+    // If user doesn't have minimum 11 players, show failure screen
+    if (!hasMinimumPlayers) {
+      return (
+        <>
+          <PageHeader title="Season Failed" showBack={false} />
+          <div className="min-h-screen bg-dark-950 flex items-center justify-center p-6">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="glass-card p-8 max-w-md w-full text-center"
+            >
+              <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-ball-500/20 to-ball-600/20 flex items-center justify-center">
+                <Ban className="w-10 h-10 text-ball-500" />
+              </div>
+
+              <h1 className="text-2xl font-display font-bold text-white mb-2">
+                Season Disqualified
+              </h1>
+              <p className="text-dark-400 mb-6">
+                You finished the auction with only <span className="text-ball-400 font-bold">{userPlayerCount} players</span>.
+                A minimum of 11 players is required to participate in the league.
+              </p>
+
+              <div className="glass-card p-4 mb-6 bg-dark-800/50">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="text-dark-400">Players acquired:</span>
+                  <span className="text-white font-semibold">{userPlayerCount}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="text-dark-400">Minimum required:</span>
+                  <span className="text-ball-400 font-semibold">11</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-dark-400">Shortfall:</span>
+                  <span className="text-ball-400 font-semibold">{11 - userPlayerCount} players</span>
+                </div>
+              </div>
+
+              <p className="text-sm text-dark-500 mb-6">
+                Without a full squad, your team cannot compete in matches.
+                Start a new career to try again with better budget management.
+              </p>
+
+              <button
+                onClick={() => navigate('/new-career')}
+                className="btn-primary w-full flex items-center justify-center gap-2"
+              >
+                <RotateCcw className="w-5 h-5" />
+                Start New Career
+              </button>
+            </motion.div>
+          </div>
+        </>
+      );
+    }
+
+    // Success - navigate to dashboard
     navigate('/dashboard');
     return null;
   }
@@ -546,13 +799,13 @@ export function AuctionPage() {
                     )}
                   </div>
 
-                  {/* Traits & Intent Row */}
+                  {/* Traits & Intent Row - clickable for descriptions */}
                   <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
                     {state.current_player.role !== 'bowler' && state.current_player.batting_intent && (
-                      <IntentBadge intent={state.current_player.batting_intent} />
+                      <IntentBadge intent={state.current_player.batting_intent} clickable />
                     )}
                     {state.current_player.traits && state.current_player.traits.length > 0 && (
-                      <TraitBadges traits={state.current_player.traits} maxShow={2} />
+                      <TraitBadges traits={state.current_player.traits} maxShow={3} clickable />
                     )}
                   </div>
 
@@ -656,15 +909,15 @@ export function AuctionPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           onClick={handleBid}
-                          disabled={bidMutation.isPending || isUserHighestBidder || !canBid}
+                          disabled={isManualBidding || isUserHighestBidder || !canBid}
                           className={clsx(
                             "flex flex-col items-center justify-center gap-1 py-3",
-                            canBid ? "btn-primary" : "btn-secondary opacity-50 cursor-not-allowed"
+                            canBid && !isManualBidding ? "btn-primary" : "btn-secondary opacity-50 cursor-not-allowed"
                           )}
                         >
                           <div className="flex items-center gap-2">
                             <TrendingUp className="w-5 h-5" />
-                            <span>Bid</span>
+                            <span>{isManualBidding ? 'Bidding...' : 'Bid'}</span>
                           </div>
                           <span className="text-xs opacity-75">
                             {formatPrice(nextBidAmount)}
@@ -673,7 +926,7 @@ export function AuctionPage() {
 
                         <button
                           onClick={() => quickPassMutation.mutate()}
-                          disabled={quickPassMutation.isPending || simulateMutation.isPending}
+                          disabled={quickPassMutation.isPending || isManualBidding}
                           className="btn-secondary flex items-center justify-center gap-2"
                         >
                           <SkipForward className="w-5 h-5" />
@@ -689,7 +942,7 @@ export function AuctionPage() {
 
                       {!canAffordNextBid && !isUserHighestBidder && !isOverseasQuotaReached && (
                         <p className="text-center text-amber-400 text-sm">
-                          Can't bid - need to reserve ₹2Cr per slot for min squad ({Math.max(0, 18 - (userTeamState?.total_players || 0))} slots left)
+                          Can't bid - insufficient budget ({formatPrice(userTeamState?.remaining_budget || 0)} remaining)
                         </p>
                       )}
 
@@ -699,15 +952,22 @@ export function AuctionPage() {
                         </p>
                       )}
 
-                      {/* Manual next bid for testing */}
-                      <button
-                        onClick={() => simulateMutation.mutate()}
-                        disabled={simulateMutation.isPending}
-                        className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
-                      >
-                        <Play className="w-4 h-4" />
-                        Simulate AI Bid
-                      </button>
+                      {/* Warning about risk of not meeting 11 players */}
+                      {isAtRiskOfNotMeeting11 && !isUserHighestBidder && canAffordNextBid && (
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                            <div className="text-sm">
+                              <p className="text-amber-400 font-medium">Squad Warning</p>
+                              <p className="text-dark-300 text-xs mt-0.5">
+                                You need {playersNeededFor11} more players to play matches.
+                                Save some budget or you won't be able to participate in the league!
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                     </>
                   )}
 
@@ -721,10 +981,10 @@ export function AuctionPage() {
                         <>
                           <div className="flex items-center gap-2 mb-3">
                             <AlertCircle className="w-5 h-5 text-amber-500" />
-                            <p className="font-semibold text-amber-400">Budget Reserve Limit</p>
+                            <p className="font-semibold text-amber-400">Budget Limit Reached</p>
                           </div>
                           <p className="text-sm text-dark-300 mb-2">
-                            You need to reserve funds for your minimum squad (18 players).
+                            You don't have enough budget for the next bid.
                           </p>
                           <div className="bg-dark-800/50 rounded-lg p-3 mb-4 text-sm">
                             <div className="flex justify-between mb-1">
@@ -733,24 +993,20 @@ export function AuctionPage() {
                             </div>
                             <div className="flex justify-between mb-1">
                               <span className="text-dark-400">Players owned:</span>
-                              <span className="text-white">{userTeamState?.total_players || 0}/18 min</span>
+                              <span className="text-white">{userTeamState?.total_players || 0}</span>
                             </div>
-                            <div className="flex justify-between mb-1">
-                              <span className="text-dark-400">Slots to fill:</span>
-                              <span className="text-white">{Math.max(0, 18 - (userTeamState?.total_players || 0))}</span>
-                            </div>
-                            <div className="flex justify-between mb-1">
-                              <span className="text-dark-400">Reserved (₹2Cr/slot):</span>
-                              <span className="text-ball-400">-{formatPrice(Math.max(0, 18 - (userTeamState?.total_players || 0) - 1) * 20000000)}</span>
-                            </div>
-                            <div className="border-t border-dark-700 mt-2 pt-2 flex justify-between">
-                              <span className="text-dark-400">Max bid possible:</span>
-                              <span className="text-pitch-400 font-semibold">{formatPrice(userTeamState?.max_bid_possible || 0)}</span>
-                            </div>
+                            {playersNeededFor11 > 0 && (
+                              <div className="flex justify-between mb-1 text-amber-400">
+                                <span>Players needed for matches:</span>
+                                <span>{playersNeededFor11} more</span>
+                              </div>
+                            )}
                           </div>
-                          <p className="text-xs text-dark-500 mb-4">
-                            Buy more players at base price to free up your bidding power, or pass on this player.
-                          </p>
+                          {playersNeededFor11 > 0 && (
+                            <p className="text-xs text-amber-400 mb-4">
+                              ⚠️ You need at least 11 players to participate in matches!
+                            </p>
+                          )}
                         </>
                       ) : (
                         <>
@@ -824,16 +1080,6 @@ export function AuctionPage() {
                     <div className="text-center text-dark-400 text-sm">
                       AI teams are bidding... please wait.
                     </div>
-                  )}
-
-                  {(phase === 'user_turn' && state.current_bidder_team_id) && (
-                    <button
-                      onClick={() => finalizeMutation.mutate()}
-                      disabled={finalizeMutation.isPending}
-                      className="btn-secondary w-full"
-                    >
-                      {finalizeMutation.isPending ? 'Finalizing...' : 'Finalize Sale'}
-                    </button>
                   )}
 
                   {phase !== 'cap_exceeded' && (

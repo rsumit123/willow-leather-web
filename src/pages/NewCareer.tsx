@@ -41,7 +41,7 @@ export function NewCareerPage() {
   return (
     <div className="min-h-screen bg-dark-950 relative">
       {/* Background */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-gradient-radial from-pitch-500/5 to-transparent" />
       </div>
 
