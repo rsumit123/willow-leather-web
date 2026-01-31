@@ -29,6 +29,7 @@ export function AIMatchSimulationOverlay({
   const [currentResult, setCurrentResult] = useState<MatchResult | null>(null);
   const [isComplete, setIsComplete] = useState(false);
   const [isSkipping, setIsSkipping] = useState(false);
+  const [progress, setProgress] = useState(0); // Separate progress state to avoid flickering
   const skipRef = useRef(false);
 
   const currentFixture = fixtures[currentIndex];
@@ -51,11 +52,14 @@ export function AIMatchSimulationOverlay({
 
         const result = await seasonApi.simulateNextMatch(careerId);
         setSimulatedMatches(prev => [...prev, { fixture, result: result.data }]);
+        // Update progress as we skip through
+        setProgress((i + 1) / totalMatches * 100);
       }
     } catch (error) {
       console.error('Failed to simulate matches:', error);
     }
 
+    setProgress(100);
     setIsComplete(true);
   };
 
@@ -63,15 +67,18 @@ export function AIMatchSimulationOverlay({
   useEffect(() => {
     if (!currentFixture || isUserMatch || skipRef.current) {
       // No more AI matches or reached user's match
+      setProgress(100);
       setIsComplete(true);
       return;
     }
 
     const simulateMatch = async () => {
       setPhase('simulating');
+      // Set progress to show we're working on this match (halfway point)
+      setProgress((currentIndex + 0.3) / totalMatches * 100);
 
       // Add a small delay for visual effect
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       if (skipRef.current) return; // Check if skipped during delay
 
@@ -82,8 +89,10 @@ export function AIMatchSimulationOverlay({
         setCurrentResult(result.data);
         setSimulatedMatches(prev => [...prev, { fixture: currentFixture, result: result.data }]);
         setPhase('showing_result');
+        // Update progress to show this match is complete
+        setProgress((currentIndex + 1) / totalMatches * 100);
 
-        // Show result for 2 seconds, then transition
+        // Show result for 3.5 seconds (more time to read), then transition
         setTimeout(() => {
           if (skipRef.current) return;
           setPhase('transitioning');
@@ -94,8 +103,8 @@ export function AIMatchSimulationOverlay({
             } else {
               setIsComplete(true);
             }
-          }, 300);
-        }, 2000);
+          }, 400);
+        }, 3500);
       } catch (error) {
         console.error('Failed to simulate match:', error);
         setIsComplete(true);
@@ -167,8 +176,8 @@ export function AIMatchSimulationOverlay({
           <motion.div
             className="h-full bg-pitch-500"
             initial={{ width: 0 }}
-            animate={{ width: `${((currentIndex + (phase === 'showing_result' ? 1 : 0.5)) / totalMatches) * 100}%` }}
-            transition={{ duration: 0.3 }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
           />
         </div>
       </div>
