@@ -97,11 +97,7 @@ function SortableBattingItem({
       ref={setNodeRef}
       style={style}
       {...attributes}
-      {...listeners}
-      className={clsx(
-        'touch-none',
-        isDragging && 'relative'
-      )}
+      className={isDragging ? 'relative' : ''}
     >
       <div
         className={clsx(
@@ -116,8 +112,11 @@ function SortableBattingItem({
           {position}
         </div>
 
-        {/* Drag handle */}
-        <div className="p-1 rounded text-dark-400 cursor-grab active:cursor-grabbing">
+        {/* Drag handle - only this triggers drag, rest of card allows scrolling */}
+        <div
+          {...listeners}
+          className="p-2 -m-1 rounded text-dark-400 cursor-grab active:cursor-grabbing touch-none"
+        >
           <GripVertical className="w-4 h-4" />
         </div>
 
