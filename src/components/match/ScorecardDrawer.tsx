@@ -1,25 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronDown, ChevronUp, Zap, Target, AlertTriangle, Hammer } from 'lucide-react';
+import { X, ChevronDown, ChevronUp } from 'lucide-react';
 import type { LiveScorecardResponse, InningsScorecard } from '../../api/client';
-
-// Mini trait icon for scorecard (very compact)
-function TraitIcon({ trait }: { trait: string }) {
-  const config: Record<string, { icon: typeof Zap; color: string; title: string }> = {
-    clutch: { icon: Zap, color: 'text-blue-400', title: 'Clutch player' },
-    finisher: { icon: Target, color: 'text-orange-400', title: 'Finisher' },
-    choker: { icon: AlertTriangle, color: 'text-red-400/60', title: 'Struggles under pressure' },
-    partnership_breaker: { icon: Hammer, color: 'text-purple-400', title: 'Partnership breaker' },
-  };
-  const c = config[trait];
-  if (!c) return null;
-  const Icon = c.icon;
-  return (
-    <span title={c.title}>
-      <Icon className={`w-3 h-3 ${c.color}`} />
-    </span>
-  );
-}
+import { TraitBadge } from '../common/TraitBadge';
 
 interface ScorecardDrawerProps {
   isOpen: boolean;
@@ -62,7 +45,7 @@ function InningsTab({ innings, isActive }: { innings: InningsScorecard; isActive
                         {!batter.is_out && <span className="text-pitch-400">*</span>}
                       </span>
                       {batter.traits && batter.traits.map((trait) => (
-                        <TraitIcon key={trait} trait={trait} />
+                        <TraitBadge key={trait} trait={trait} compact clickable />
                       ))}
                     </div>
                     <div className="text-xs text-dark-500">{batter.dismissal}</div>

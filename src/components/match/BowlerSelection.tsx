@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { AvailableBowler } from '../../api/client';
 import clsx from 'clsx';
+import { TraitBadge } from '../common/TraitBadge';
 
 interface BowlerSelectionProps {
   bowlers: AvailableBowler[];
@@ -76,7 +77,7 @@ export function BowlerSelection({ bowlers, onSelect, isLoading }: BowlerSelectio
               >
                 <div className="flex justify-between items-center">
                   <div>
-                    <div className="font-medium text-white flex items-center gap-2">
+                    <div className="font-medium text-white flex items-center gap-2 flex-wrap">
                       {bowler.name}
                       <span className={clsx(
                         "text-xs px-1.5 py-0.5 rounded",
@@ -86,6 +87,9 @@ export function BowlerSelection({ bowlers, onSelect, isLoading }: BowlerSelectio
                       )}>
                         {bowler.bowling_skill}
                       </span>
+                      {bowler.traits && bowler.traits.map((trait) => (
+                        <TraitBadge key={trait} trait={trait} compact clickable />
+                      ))}
                     </div>
                     <div className="text-xs text-dark-400">{formatBowlingType(bowler.bowling_type)}</div>
                     {!bowler.can_bowl && bowler.reason && (

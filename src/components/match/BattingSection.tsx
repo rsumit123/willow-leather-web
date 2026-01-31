@@ -1,6 +1,7 @@
 import type { PlayerStateBrief } from '../../api/client';
 import { Flame } from 'lucide-react';
 import clsx from 'clsx';
+import { TraitBadge } from '../common/TraitBadge';
 
 interface BattingSectionProps {
   striker?: PlayerStateBrief;
@@ -28,7 +29,7 @@ export function BattingSection({ striker, nonStriker }: BattingSectionProps) {
               isStriker && "bg-pitch-500/5"
             )}
           >
-            <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
               <span
                 className={clsx(
                   "font-medium truncate",
@@ -44,6 +45,9 @@ export function BattingSection({ striker, nonStriker }: BattingSectionProps) {
               {player.is_on_fire && (
                 <Flame className="w-3.5 h-3.5 text-orange-400" />
               )}
+              {player.traits && player.traits.map((trait) => (
+                <TraitBadge key={trait} trait={trait} compact clickable />
+              ))}
             </div>
             <div className="flex items-baseline gap-1 text-right">
               <span className="text-lg font-display font-bold text-white">

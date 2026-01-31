@@ -290,6 +290,7 @@ export interface PlayerStateBrief {
   is_out: boolean;
   is_settled: boolean;
   is_on_fire: boolean;
+  traits?: string[];
 }
 
 export interface BowlerStateBrief {
@@ -301,6 +302,7 @@ export interface BowlerStateBrief {
   wickets: number;
   is_tired: boolean;
   has_confidence: boolean;
+  traits?: string[];
 }
 
 export interface MatchState {
@@ -343,6 +345,7 @@ export interface AvailableBowler {
   economy: number;
   can_bowl: boolean;
   reason?: string;
+  traits?: string[];
 }
 
 export interface AvailableBowlersResponse {
