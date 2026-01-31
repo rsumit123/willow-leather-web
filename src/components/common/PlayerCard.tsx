@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion';
 import { User, Star, Globe } from 'lucide-react';
 import type { Player, PlayerBrief } from '../../api/client';
+import { TraitBadges } from './TraitBadge';
+import { IntentBadge } from './IntentBadge';
 import clsx from 'clsx';
 
 interface PlayerCardProps {
@@ -74,7 +76,7 @@ export function PlayerCard({
             )}
           </div>
 
-          <div className="flex items-center gap-2 mt-0.5">
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span
               className={clsx(
                 'badge',
@@ -87,10 +89,14 @@ export function PlayerCard({
               {roleLabels[player.role] || player.role}
             </span>
 
-            {isFullPlayer && (
-              <span className="text-xs text-dark-400">
-                {'nationality' in player && player.nationality}
-              </span>
+            {/* Intent badge for batters */}
+            {player.role !== 'bowler' && 'batting_intent' in player && player.batting_intent && (
+              <IntentBadge intent={player.batting_intent} compact />
+            )}
+
+            {/* Trait badges */}
+            {'traits' in player && player.traits && player.traits.length > 0 && (
+              <TraitBadges traits={player.traits} maxShow={2} compact />
             )}
           </div>
         </div>
@@ -113,14 +119,27 @@ export function PlayerCard({
       {/* Extended stats for full player */}
       {isFullPlayer && !compact && 'batting' in player && (
         <div className="mt-3 pt-3 border-t border-dark-700/50">
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-4 gap-2 text-center">
             <div>
               <p className="text-xs text-dark-400">BAT</p>
-              <p className="font-semibold text-sm">{player.batting}</p>
+              <p className={clsx(
+                "font-semibold text-sm",
+                player.batting >= 70 ? "text-pitch-400" : "text-white"
+              )}>{player.batting}</p>
             </div>
             <div>
               <p className="text-xs text-dark-400">BOWL</p>
-              <p className="font-semibold text-sm">{player.bowling}</p>
+              <p className={clsx(
+                "font-semibold text-sm",
+                player.bowling >= 70 ? "text-purple-400" : "text-white"
+              )}>{player.bowling}</p>
+            </div>
+            <div>
+              <p className="text-xs text-dark-400">PWR</p>
+              <p className={clsx(
+                "font-semibold text-sm",
+                'power' in player && player.power >= 70 ? "text-orange-400" : "text-white"
+              )}>{'power' in player ? player.power : '-'}</p>
             </div>
             <div>
               <p className="text-xs text-dark-400">AGE</p>

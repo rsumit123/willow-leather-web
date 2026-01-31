@@ -24,6 +24,8 @@ import { PlayerListDrawer } from '../components/auction/PlayerListDrawer';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { PageHeader } from '../components/common/PageHeader';
+import { TraitBadges } from '../components/common/TraitBadge';
+import { IntentBadge } from '../components/common/IntentBadge';
 import clsx from 'clsx';
 
 // Auction states
@@ -506,6 +508,52 @@ export function AuctionPage() {
                         {state.current_player.overall_rating}
                       </span>
                     </div>
+                  </div>
+
+                  {/* Quick Stats Row */}
+                  <div className="flex items-center justify-center gap-4 mb-3 py-2 border-t border-b border-dark-700/50">
+                    <div className="text-center">
+                      <p className="text-xs text-dark-400">BAT</p>
+                      <p className={clsx(
+                        "font-bold text-sm",
+                        state.current_player.batting >= 70 ? "text-pitch-400" :
+                        state.current_player.batting >= 50 ? "text-white" : "text-dark-400"
+                      )}>
+                        {state.current_player.batting}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-dark-400">BOWL</p>
+                      <p className={clsx(
+                        "font-bold text-sm",
+                        state.current_player.bowling >= 70 ? "text-purple-400" :
+                        state.current_player.bowling >= 50 ? "text-white" : "text-dark-400"
+                      )}>
+                        {state.current_player.bowling}
+                      </p>
+                    </div>
+                    {state.current_player.role !== 'bowler' && (
+                      <div className="text-center">
+                        <p className="text-xs text-dark-400">PWR</p>
+                        <p className={clsx(
+                          "font-bold text-sm",
+                          state.current_player.power >= 70 ? "text-orange-400" :
+                          state.current_player.power >= 50 ? "text-white" : "text-dark-400"
+                        )}>
+                          {state.current_player.power}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Traits & Intent Row */}
+                  <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
+                    {state.current_player.role !== 'bowler' && state.current_player.batting_intent && (
+                      <IntentBadge intent={state.current_player.batting_intent} />
+                    )}
+                    {state.current_player.traits && state.current_player.traits.length > 0 && (
+                      <TraitBadges traits={state.current_player.traits} maxShow={2} />
+                    )}
                   </div>
 
                   <p className="text-sm text-dark-400">

@@ -96,6 +96,9 @@ export interface Player {
   form: number;
   batting_style: string;
   bowling_type: string;
+  power: number;  // Six-hitting ability (1-100)
+  traits: string[];  // Player traits like "clutch", "finisher"
+  batting_intent: string;  // anchor, accumulator, aggressive, power_hitter
 }
 
 export interface PlayerBrief {
@@ -107,6 +110,11 @@ export interface PlayerBrief {
   base_price: number;
   batting_style: string;
   bowling_type: string;
+  batting: number;  // Batting skill for display
+  bowling: number;  // Bowling skill for display
+  power: number;  // Power for batters
+  traits: string[];  // Player traits
+  batting_intent: string;  // Batting intent
 }
 
 export interface Career {
