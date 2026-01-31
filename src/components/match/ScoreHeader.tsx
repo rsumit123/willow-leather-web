@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { ClipboardList } from 'lucide-react';
 import type { MatchState } from '../../api/client';
 import clsx from 'clsx';
 
@@ -6,9 +7,10 @@ interface ScoreHeaderProps {
   state: MatchState;
   team1Name: string;
   team2Name: string;
+  onScorecardClick?: () => void;
 }
 
-export function ScoreHeader({ state, team1Name, team2Name }: ScoreHeaderProps) {
+export function ScoreHeader({ state, team1Name, team2Name, onScorecardClick }: ScoreHeaderProps) {
   // Use batting_team_name from state if available, otherwise fallback to old logic
   const battingTeam = state.batting_team_name || (state.innings === 1 ? team1Name : team2Name);
 
@@ -64,6 +66,15 @@ export function ScoreHeader({ state, team1Name, team2Name }: ScoreHeaderProps) {
                   <span className="text-dark-500">RRR </span>
                   <span className="font-semibold text-pitch-400">{state.required_rate.toFixed(2)}</span>
                 </div>
+              )}
+              {onScorecardClick && (
+                <button
+                  onClick={onScorecardClick}
+                  className="p-1.5 rounded-lg bg-dark-700/60 hover:bg-dark-600 transition-colors border border-dark-600/50"
+                  title="View Scorecard"
+                >
+                  <ClipboardList className="w-4 h-4 text-pitch-400" />
+                </button>
               )}
             </div>
           </div>

@@ -404,6 +404,7 @@ export interface BatterScorecardEntry {
   is_out: boolean;
   dismissal: string;
   batting_position: number;
+  traits: string[];
 }
 
 export interface BowlerScorecardEntry {

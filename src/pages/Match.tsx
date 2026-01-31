@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { matchApi, seasonApi, type BallResult, type TossResult } from '../api/client';
+import { matchApi, seasonApi, careerApi, type BallResult, type TossResult } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { ScoreHeader } from '../components/match/ScoreHeader';
@@ -14,7 +14,7 @@ import { TossScreen } from '../components/match/TossScreen';
 import { BowlerSelection } from '../components/match/BowlerSelection';
 import { ScorecardDrawer } from '../components/match/ScorecardDrawer';
 import { MatchCompletionScreen } from '../components/match/MatchCompletionScreen';
-import { ClipboardList } from 'lucide-react';
+import { PreMatchXIReview } from '../components/match/PreMatchXIReview';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 
@@ -25,7 +25,8 @@ export function MatchPage() {
   const queryClient = useQueryClient();
   const [aggression, setAggression] = useState('balanced');
   const [lastBall, setLastBall] = useState<BallResult | null>(null);
-  const [showToss, setShowToss] = useState(true);
+  const [showPreMatchReview, setShowPreMatchReview] = useState(true);
+  const [showToss, setShowToss] = useState(false);
   const [tossResult, setTossResult] = useState<TossResult | null>(null);
   const [showInningsChange, setShowInningsChange] = useState(false);
   const [inningsChangeInfo, setInningsChangeInfo] = useState<{ target: number; battingTeam: string } | null>(null);
@@ -41,11 +42,25 @@ export function MatchPage() {
     enabled: !!careerId && !!fid,
   });
 
+  // Fetch playing XI for pre-match review
+  const { data: playingXI, isLoading: xiLoading } = useQuery({
+    queryKey: ['playing-xi', careerId],
+    queryFn: () => careerApi.getPlayingXI(careerId!).then((r) => r.data),
+    enabled: !!careerId && showPreMatchReview,
+  });
+
+  // Redirect to XI selection if not set
+  useEffect(() => {
+    if (!xiLoading && playingXI && !playingXI.is_set && showPreMatchReview) {
+      navigate(`/playing-xi?returnTo=/match/${fixtureId}`);
+    }
+  }, [playingXI, xiLoading, showPreMatchReview, navigate, fixtureId]);
+
   // Fetch match state
   const { data: state, isLoading, isError } = useQuery({
     queryKey: ['match-state', careerId, fid],
     queryFn: () => matchApi.getState(careerId!, fid).then((r) => r.data),
-    enabled: !!careerId && !!fid && !showToss,
+    enabled: !!careerId && !!fid && !showToss && !showPreMatchReview,
     refetchInterval: (query) => {
         // Stop polling if match is completed or if there's an error
         if (query.state.error) return false;
@@ -191,17 +206,25 @@ export function MatchPage() {
     }
   }, [state?.can_change_bowler, state?.bowler, showBowlerSelect, showInningsChange, queryClient, careerId, fid]);
 
-  // Check if match is already in progress (skip toss)
+  // Check if match is already in progress (skip pre-match and toss)
   // If there's an error (404 - session lost), show toss screen to restart
   useEffect(() => {
     if (state && !isError) {
+      setShowPreMatchReview(false);
       setShowToss(false);
     }
     if (isError) {
+      setShowPreMatchReview(false);
       setShowToss(true);
       setTossResult(null);
     }
   }, [state, isError]);
+
+  // Handle proceeding from pre-match review to toss
+  const handleProceedToToss = () => {
+    setShowPreMatchReview(false);
+    setShowToss(true);
+  };
 
   // Handle toss election
   const handleElect = (choice: 'bat' | 'bowl') => {
@@ -214,6 +237,26 @@ export function MatchPage() {
       });
     }
   };
+
+  // Show pre-match XI review (wait for fixture and XI to load)
+  if (showPreMatchReview && !state) {
+    if (!fixture || xiLoading) {
+      return <Loading fullScreen text="Loading match..." />;
+    }
+    if (playingXI?.is_set && playingXI.players.length === 11) {
+      return (
+        <PreMatchXIReview
+          players={playingXI.players}
+          teamName={fixture.team1_name}
+          opponentName={fixture.team2_name}
+          fixtureId={fixtureId || ''}
+          onProceed={handleProceedToToss}
+        />
+      );
+    }
+    // If XI not set, we'll be redirected by the useEffect
+    return <Loading fullScreen text="Checking playing XI..." />;
+  }
 
   // Show toss screen (wait for fixture to load first to avoid flicker)
   if (showToss && !state) {
@@ -306,21 +349,12 @@ export function MatchPage() {
       )}
 
       <div className="min-h-screen bg-dark-950 flex flex-col pb-[200px]">
-        <div className="relative">
-          <ScoreHeader
-            state={state}
-            team1Name={fixture?.team1_name || 'Team 1'}
-            team2Name={fixture?.team2_name || 'Team 2'}
-          />
-          {/* Scorecard button - positioned in top-right of header */}
-          <button
-            onClick={() => setShowScorecard(true)}
-            className="absolute top-6 right-6 z-50 p-2 rounded-lg bg-dark-700/80 hover:bg-dark-600 transition-colors border border-dark-600/50"
-            title="View Scorecard"
-          >
-            <ClipboardList className="w-4 h-4 text-pitch-400" />
-          </button>
-        </div>
+        <ScoreHeader
+          state={state}
+          team1Name={fixture?.team1_name || 'Team 1'}
+          team2Name={fixture?.team2_name || 'Team 2'}
+          onScorecardClick={() => setShowScorecard(true)}
+        />
 
         <div className="flex-1 flex flex-col max-w-lg mx-auto w-full space-y-4">
           <BallDisplay
