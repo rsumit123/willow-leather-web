@@ -13,6 +13,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Info,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { careerApi, type Player } from '../api/client';
@@ -21,6 +22,7 @@ import { Loading } from '../components/common/Loading';
 import { PageHeader } from '../components/common/PageHeader';
 import { TraitBadges } from '../components/common/TraitBadge';
 import { IntentBadge } from '../components/common/IntentBadge';
+import { PlayerDetailModal } from '../components/common/PlayerDetailModal';
 import clsx from 'clsx';
 import {
   DndContext,
@@ -30,8 +32,9 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
+  DragOverlay,
 } from '@dnd-kit/core';
-import type { DragEndEvent } from '@dnd-kit/core';
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import {
   arrayMove,
   SortableContext,
@@ -63,41 +66,30 @@ const ROLE_SHORT: Record<string, string> = {
   bowler: 'BWL',
 };
 
-// Sortable batting order item
-function SortableBattingItem({
+// Batting order item content (shared between sortable and overlay)
+function BattingItemContent({
   player,
   position,
   onRemove,
+  onShowDetails,
+  isDragging = false,
+  isOverlay = false,
 }: {
   player: Player;
   position: number;
-  onRemove: () => void;
+  onRemove?: () => void;
+  onShowDetails?: () => void;
+  isDragging?: boolean;
+  isOverlay?: boolean;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: player.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
   return (
-    <motion.div
-      ref={setNodeRef}
-      style={style}
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 20 }}
+    <div
       className={clsx(
         'flex items-center gap-2 p-3 rounded-xl border transition-all',
-        isDragging
-          ? 'bg-pitch-500/20 border-pitch-500 shadow-lg shadow-pitch-500/20 z-50'
+        isOverlay
+          ? 'bg-pitch-500/30 border-pitch-500 shadow-2xl shadow-pitch-500/30 scale-105'
+          : isDragging
+          ? 'bg-dark-800/30 border-dark-600 opacity-50'
           : 'bg-dark-800/50 border-dark-700/50 hover:border-dark-600'
       )}
     >
@@ -107,16 +99,15 @@ function SortableBattingItem({
       </div>
 
       {/* Drag handle */}
-      <button
-        {...attributes}
-        {...listeners}
-        className="p-1 rounded hover:bg-dark-600 cursor-grab active:cursor-grabbing touch-none"
-      >
-        <GripVertical className="w-4 h-4 text-dark-400" />
-      </button>
+      <div className="p-1 rounded text-dark-400 cursor-grab active:cursor-grabbing">
+        <GripVertical className="w-4 h-4" />
+      </div>
 
-      {/* Player info */}
-      <div className="flex-1 min-w-0">
+      {/* Player info - clickable for details */}
+      <button
+        onClick={onShowDetails}
+        className="flex-1 min-w-0 text-left hover:bg-dark-700/30 -my-2 -ml-1 py-2 pl-1 pr-2 rounded-lg transition-colors"
+      >
         <div className="flex items-center gap-2">
           <span className="font-medium text-white truncate">{player.name}</span>
           {player.is_overseas && (
@@ -137,7 +128,7 @@ function SortableBattingItem({
             <TraitBadges traits={player.traits} maxShow={2} compact />
           )}
         </div>
-      </div>
+      </button>
 
       {/* Stats */}
       <div className="flex items-center gap-2 text-xs flex-shrink-0">
@@ -162,13 +153,63 @@ function SortableBattingItem({
       </div>
 
       {/* Remove button */}
-      <button
-        onClick={onRemove}
-        className="p-1.5 rounded-lg hover:bg-ball-500/20 text-dark-400 hover:text-ball-400 transition-colors"
-      >
-        <X className="w-4 h-4" />
-      </button>
-    </motion.div>
+      {onRemove && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="p-1.5 rounded-lg hover:bg-ball-500/20 text-dark-400 hover:text-ball-400 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Sortable batting order item
+function SortableBattingItem({
+  player,
+  position,
+  onRemove,
+  onShowDetails,
+}: {
+  player: Player;
+  position: number;
+  onRemove: () => void;
+  onShowDetails: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: player.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="touch-none"
+    >
+      <BattingItemContent
+        player={player}
+        position={position}
+        onRemove={onRemove}
+        onShowDetails={onShowDetails}
+        isDragging={isDragging}
+      />
+    </div>
   );
 }
 
@@ -176,81 +217,100 @@ function SortableBattingItem({
 function SquadPlayerRow({
   player,
   isSelected,
-  onToggle,
+  onAdd,
+  onShowDetails,
 }: {
   player: Player;
   isSelected: boolean;
-  onToggle: () => void;
+  onAdd: () => void;
+  onShowDetails: () => void;
 }) {
   return (
-    <button
-      onClick={onToggle}
-      disabled={isSelected}
+    <div
       className={clsx(
-        'w-full px-3 py-2.5 flex items-center gap-2 transition-colors text-left rounded-lg',
+        'flex items-center gap-2 transition-colors rounded-lg',
         isSelected
-          ? 'bg-dark-700/30 opacity-50 cursor-not-allowed'
+          ? 'bg-dark-700/30 opacity-50'
           : 'hover:bg-dark-800/50'
       )}
     >
-      {/* Add indicator */}
-      <div
+      {/* Add button */}
+      <button
+        onClick={onAdd}
+        disabled={isSelected}
         className={clsx(
-          'w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors',
+          'p-2.5 flex items-center justify-center flex-shrink-0 transition-colors',
           isSelected
-            ? 'bg-pitch-500/50 border-pitch-500/50'
-            : 'border-dark-500 hover:border-pitch-500 hover:bg-pitch-500/10'
+            ? 'cursor-not-allowed'
+            : 'hover:bg-pitch-500/10'
         )}
       >
-        {isSelected ? (
-          <Check className="w-3.5 h-3.5 text-white/70" />
-        ) : (
-          <Plus className="w-3.5 h-3.5 text-dark-400" />
-        )}
-      </div>
+        <div
+          className={clsx(
+            'w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors',
+            isSelected
+              ? 'bg-pitch-500/50 border-pitch-500/50'
+              : 'border-dark-500 hover:border-pitch-500 hover:bg-pitch-500/10'
+          )}
+        >
+          {isSelected ? (
+            <Check className="w-3.5 h-3.5 text-white/70" />
+          ) : (
+            <Plus className="w-3.5 h-3.5 text-dark-400" />
+          )}
+        </div>
+      </button>
 
-      {/* Player info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
+      {/* Player info - clickable for details */}
+      <button
+        onClick={onShowDetails}
+        className="flex-1 min-w-0 py-2.5 pr-2 text-left flex items-center gap-2"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={clsx(
+              'font-medium truncate text-sm',
+              isSelected ? 'text-dark-400' : 'text-white'
+            )}>
+              {player.name}
+            </span>
+            {player.is_overseas && (
+              <Globe className="w-3 h-3 text-blue-400 flex-shrink-0" />
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-dark-400 mt-0.5">
+            <span>{player.age}y</span>
+            {player.role !== 'bowler' && player.batting_intent && (
+              <IntentBadge intent={player.batting_intent} compact />
+            )}
+            {player.traits && player.traits.length > 0 && (
+              <TraitBadges traits={player.traits} maxShow={1} compact />
+            )}
+          </div>
+        </div>
+
+        {/* Rating */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <Star className={clsx(
+            'w-3 h-3',
+            player.overall_rating >= 80
+              ? 'text-yellow-400 fill-yellow-400'
+              : player.overall_rating >= 70
+              ? 'text-pitch-400 fill-pitch-400'
+              : 'text-dark-400'
+          )} />
           <span className={clsx(
-            'font-medium truncate text-sm',
+            'font-bold text-sm',
             isSelected ? 'text-dark-400' : 'text-white'
           )}>
-            {player.name}
+            {player.overall_rating}
           </span>
-          {player.is_overseas && (
-            <Globe className="w-3 h-3 text-blue-400 flex-shrink-0" />
-          )}
         </div>
-        <div className="flex items-center gap-1.5 text-[11px] text-dark-400 mt-0.5">
-          <span>{player.age}y</span>
-          {player.role !== 'bowler' && player.batting_intent && (
-            <IntentBadge intent={player.batting_intent} compact />
-          )}
-          {player.traits && player.traits.length > 0 && (
-            <TraitBadges traits={player.traits} maxShow={1} compact />
-          )}
-        </div>
-      </div>
 
-      {/* Rating */}
-      <div className="flex items-center gap-1 flex-shrink-0">
-        <Star className={clsx(
-          'w-3 h-3',
-          player.overall_rating >= 80
-            ? 'text-yellow-400 fill-yellow-400'
-            : player.overall_rating >= 70
-            ? 'text-pitch-400 fill-pitch-400'
-            : 'text-dark-400'
-        )} />
-        <span className={clsx(
-          'font-bold text-sm',
-          isSelected ? 'text-dark-400' : 'text-white'
-        )}>
-          {player.overall_rating}
-        </span>
-      </div>
-    </button>
+        {/* Info icon */}
+        <Info className="w-4 h-4 text-dark-500 flex-shrink-0" />
+      </button>
+    </div>
   );
 }
 
@@ -259,12 +319,14 @@ function RoleSection({
   role,
   players,
   selectedIds,
-  onToggle,
+  onAdd,
+  onShowDetails,
 }: {
   role: string;
   players: Player[];
   selectedIds: number[];
-  onToggle: (id: number) => void;
+  onAdd: (id: number) => void;
+  onShowDetails: (player: Player) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const selectedCount = players.filter(p => selectedIds.includes(p.id)).length;
@@ -305,13 +367,14 @@ function RoleSection({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="p-2 space-y-1">
+            <div className="p-2 space-y-0.5">
               {players.map((player) => (
                 <SquadPlayerRow
                   key={player.id}
                   player={player}
                   isSelected={selectedIds.includes(player.id)}
-                  onToggle={() => onToggle(player.id)}
+                  onAdd={() => onAdd(player.id)}
+                  onShowDetails={() => onShowDetails(player)}
                 />
               ))}
             </div>
@@ -328,18 +391,20 @@ export function PlayingXIPage() {
   const queryClient = useQueryClient();
   const { careerId, career } = useGameStore();
   const [battingOrder, setBattingOrder] = useState<number[]>([]);
+  const [activeId, setActiveId] = useState<number | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
   // Check if we came from pre-match flow
   const returnTo = searchParams.get('returnTo');
   const isPreMatch = returnTo?.startsWith('/match/');
 
-  // Sensors for drag and drop
+  // Sensors for drag and drop - with better mobile support
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+      activationConstraint: { distance: 5 },
     }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 8 },
+      activationConstraint: { delay: 150, tolerance: 5 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -418,15 +483,26 @@ export function PlayingXIPage() {
     setBattingOrder(battingOrder.filter(id => id !== playerId));
   };
 
+  // Handle drag start
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as number);
+  };
+
   // Handle drag end for reordering
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveId(null);
+
     if (over && active.id !== over.id) {
       const oldIndex = battingOrder.indexOf(active.id as number);
       const newIndex = battingOrder.indexOf(over.id as number);
       setBattingOrder(arrayMove(battingOrder, oldIndex, newIndex));
     }
   };
+
+  // Get the active player for the drag overlay
+  const activePlayer = activeId ? getPlayer(activeId) : null;
+  const activePosition = activeId ? battingOrder.indexOf(activeId) + 1 : 0;
 
   if (squadLoading || xiLoading) {
     return <Loading fullScreen text="Loading squad..." />;
@@ -458,7 +534,7 @@ export function PlayingXIPage() {
 
           {/* Left: Batting Order */}
           <div className="order-1 lg:order-1">
-            <div className="glass-card p-4 sticky top-4">
+            <div className="glass-card p-4 lg:sticky lg:top-4">
               {/* Header with count */}
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-semibold text-white flex items-center gap-2">
@@ -490,6 +566,7 @@ export function PlayingXIPage() {
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
@@ -497,34 +574,40 @@ export function PlayingXIPage() {
                   strategy={verticalListSortingStrategy}
                 >
                   <div className="space-y-2 min-h-[200px]">
-                    <AnimatePresence mode="popLayout">
-                      {battingOrder.length === 0 ? (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="text-center py-8 text-dark-400"
-                        >
-                          <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">Select players from the squad</p>
-                          <p className="text-xs mt-1">Drag to reorder batting positions</p>
-                        </motion.div>
-                      ) : (
-                        battingOrder.map((playerId, index) => {
-                          const player = getPlayer(playerId);
-                          if (!player) return null;
-                          return (
-                            <SortableBattingItem
-                              key={playerId}
-                              player={player}
-                              position={index + 1}
-                              onRemove={() => removePlayer(playerId)}
-                            />
-                          );
-                        })
-                      )}
-                    </AnimatePresence>
+                    {battingOrder.length === 0 ? (
+                      <div className="text-center py-8 text-dark-400">
+                        <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">Select players from the squad</p>
+                        <p className="text-xs mt-1">Drag to reorder batting positions</p>
+                      </div>
+                    ) : (
+                      battingOrder.map((playerId, index) => {
+                        const player = getPlayer(playerId);
+                        if (!player) return null;
+                        return (
+                          <SortableBattingItem
+                            key={playerId}
+                            player={player}
+                            position={index + 1}
+                            onRemove={() => removePlayer(playerId)}
+                            onShowDetails={() => setSelectedPlayer(player)}
+                          />
+                        );
+                      })
+                    )}
                   </div>
                 </SortableContext>
+
+                {/* Drag Overlay - this is what follows the cursor/finger */}
+                <DragOverlay>
+                  {activePlayer && (
+                    <BattingItemContent
+                      player={activePlayer}
+                      position={activePosition}
+                      isOverlay
+                    />
+                  )}
+                </DragOverlay>
               </DndContext>
 
               {/* Validation feedback */}
@@ -606,7 +689,8 @@ export function PlayingXIPage() {
                   role={role}
                   players={players}
                   selectedIds={battingOrder}
-                  onToggle={addPlayer}
+                  onAdd={addPlayer}
+                  onShowDetails={setSelectedPlayer}
                 />
               );
             })}
@@ -638,6 +722,13 @@ export function PlayingXIPage() {
           </div>
         </div>
       </div>
+
+      {/* Player Detail Modal */}
+      <PlayerDetailModal
+        player={selectedPlayer}
+        isOpen={!!selectedPlayer}
+        onClose={() => setSelectedPlayer(null)}
+      />
     </>
   );
 }
