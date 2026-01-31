@@ -116,7 +116,7 @@ export function TraitBadge({ trait, compact = false, clickable = false }: TraitB
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[280px]"
+              className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 max-w-[280px] mx-auto"
             >
               <div className={clsx('rounded-xl border p-4', config.bgColor)}>
                 <div className="flex items-start justify-between mb-2">
