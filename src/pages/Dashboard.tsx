@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
   Calendar,
@@ -11,6 +11,7 @@ import {
   XCircle,
   ArrowRight,
   Shield,
+  Play,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { careerApi, seasonApi } from '../api/client';
@@ -19,12 +20,14 @@ import { Loading } from '../components/common/Loading';
 import { TeamBadge } from '../components/common/TeamCard';
 import { PageHeader } from '../components/common/PageHeader';
 import { PlayoffBracket } from '../components/playoffs/PlayoffBracket';
+import { AIMatchSimulationOverlay } from '../components/dashboard/AIMatchSimulationOverlay';
 import clsx from 'clsx';
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { careerId, setCareer } = useGameStore();
+  const [showAISimulation, setShowAISimulation] = useState(false);
 
   // Refresh career data
   const { data: careerData, isLoading: careerLoading } = useQuery({
@@ -44,6 +47,13 @@ export function DashboardPage() {
   const { data: nextFixture } = useQuery({
     queryKey: ['next-fixture', careerId],
     queryFn: () => seasonApi.getNextFixture(careerId!).then((r) => r.data),
+    enabled: !!careerId && careerData?.status === 'in_season',
+  });
+
+  // Get all scheduled fixtures (to find AI matches before user's match)
+  const { data: scheduledFixtures } = useQuery({
+    queryKey: ['scheduled-fixtures', careerId],
+    queryFn: () => seasonApi.getFixtures(careerId!, 'league', 'scheduled').then((r) => r.data),
     enabled: !!careerId && careerData?.status === 'in_season',
   });
 
@@ -235,8 +245,61 @@ export function DashboardPage() {
   const playoffsComplete = playoffBracket?.final?.status === 'completed';
   const hasMorePlayoffMatches = careerData?.status === 'playoffs' && !playoffsComplete;
 
+  // Calculate AI matches before user's next match
+  const aiMatchesBeforeUserMatch = scheduledFixtures?.filter(f => {
+    // Find user's next match
+    const userNextMatch = scheduledFixtures?.find(
+      fix => fix.team1_id === userTeam?.id || fix.team2_id === userTeam?.id
+    );
+    if (!userNextMatch) return false;
+    // Get all AI matches that come before user's match (by match_number)
+    return f.match_number < userNextMatch.match_number &&
+      f.team1_id !== userTeam?.id &&
+      f.team2_id !== userTeam?.id;
+  }) || [];
+
+  // Find user's actual next match
+  const userNextMatch = scheduledFixtures?.find(
+    f => f.team1_id === userTeam?.id || f.team2_id === userTeam?.id
+  );
+
+  // Handler for "Next Match" button
+  const handleNextMatch = () => {
+    if (aiMatchesBeforeUserMatch.length > 0) {
+      // Show AI simulation overlay
+      setShowAISimulation(true);
+    } else if (userNextMatch) {
+      // No AI matches, go directly to user's match
+      navigate(`/match/${userNextMatch.id}`);
+    }
+  };
+
+  // Handler when AI simulation completes
+  const handleAISimulationComplete = () => {
+    setShowAISimulation(false);
+    queryClient.invalidateQueries({ queryKey: ['standings'] });
+    queryClient.invalidateQueries({ queryKey: ['next-fixture'] });
+    queryClient.invalidateQueries({ queryKey: ['scheduled-fixtures'] });
+    // Navigate to user's match
+    if (userNextMatch) {
+      navigate(`/match/${userNextMatch.id}`);
+    }
+  };
+
   return (
     <>
+      {/* AI Match Simulation Overlay */}
+      <AnimatePresence>
+        {showAISimulation && userTeam && (
+          <AIMatchSimulationOverlay
+            careerId={careerId!}
+            fixtures={[...aiMatchesBeforeUserMatch, ...(userNextMatch ? [userNextMatch] : [])]}
+            userTeamId={userTeam.id}
+            onComplete={handleAISimulationComplete}
+          />
+        )}
+      </AnimatePresence>
+
       <PageHeader title="Dashboard" />
       <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
         {/* Championship Banner */}
@@ -540,21 +603,35 @@ export function DashboardPage() {
               {nextFixture.venue}
             </p>
 
-            <button
-              onClick={() => {
-                if (nextFixture.team1_id === userTeam?.id || nextFixture.team2_id === userTeam?.id) {
-                  navigate(`/match/${nextFixture.id}`);
-                } else {
-                  simulateMatchMutation.mutate();
-                }
-              }}
-              disabled={simulateMatchMutation.isPending}
-              className="btn-primary w-full mt-4 flex items-center justify-center gap-2"
-            >
-              <Zap className="w-5 h-5" />
-              {simulateMatchMutation.isPending ? 'Simulating...' :
-                (nextFixture.team1_id === userTeam?.id || nextFixture.team2_id === userTeam?.id) ? 'Play Match' : 'Simulate Match'}
-            </button>
+            {/* Show "Next Match" button if there are AI matches before user's match */}
+            {aiMatchesBeforeUserMatch.length > 0 ? (
+              <button
+                onClick={handleNextMatch}
+                className="btn-primary w-full mt-4 flex items-center justify-center gap-2"
+              >
+                <Play className="w-5 h-5" />
+                Next Match
+                <span className="text-xs opacity-75">
+                  ({aiMatchesBeforeUserMatch.length} AI match{aiMatchesBeforeUserMatch.length > 1 ? 'es' : ''} first)
+                </span>
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  if (nextFixture.team1_id === userTeam?.id || nextFixture.team2_id === userTeam?.id) {
+                    navigate(`/match/${nextFixture.id}`);
+                  } else {
+                    simulateMatchMutation.mutate();
+                  }
+                }}
+                disabled={simulateMatchMutation.isPending}
+                className="btn-primary w-full mt-4 flex items-center justify-center gap-2"
+              >
+                <Zap className="w-5 h-5" />
+                {simulateMatchMutation.isPending ? 'Simulating...' :
+                  (nextFixture.team1_id === userTeam?.id || nextFixture.team2_id === userTeam?.id) ? 'Play Match' : 'Simulate Match'}
+              </button>
+            )}
           </motion.div>
         )}
 
