@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -32,9 +32,8 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
-  DragOverlay,
 } from '@dnd-kit/core';
-import type { DragEndEvent, DragStartEvent, Modifier } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
 import {
   arrayMove,
   SortableContext,
@@ -66,108 +65,6 @@ const ROLE_SHORT: Record<string, string> = {
   bowler: 'BWL',
 };
 
-// Batting order item content (shared between sortable and overlay)
-function BattingItemContent({
-  player,
-  position,
-  onRemove,
-  onShowDetails,
-  isDragging = false,
-  isOverlay = false,
-}: {
-  player: Player;
-  position: number;
-  onRemove?: () => void;
-  onShowDetails?: () => void;
-  isDragging?: boolean;
-  isOverlay?: boolean;
-}) {
-  return (
-    <div
-      className={clsx(
-        'flex items-center gap-2 p-3 rounded-xl border transition-all',
-        isOverlay
-          ? 'bg-pitch-500/30 border-pitch-500 shadow-2xl shadow-pitch-500/30 scale-105'
-          : isDragging
-          ? 'bg-dark-800/30 border-dark-600 opacity-50'
-          : 'bg-dark-800/50 border-dark-700/50 hover:border-dark-600'
-      )}
-    >
-      {/* Position number */}
-      <div className="w-7 h-7 rounded-full bg-dark-700 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-        {position}
-      </div>
-
-      {/* Drag handle */}
-      <div className="p-1 rounded text-dark-400 cursor-grab active:cursor-grabbing">
-        <GripVertical className="w-4 h-4" />
-      </div>
-
-      {/* Player info - clickable for details */}
-      <button
-        onClick={onShowDetails}
-        className="flex-1 min-w-0 text-left hover:bg-dark-700/30 -my-2 -ml-1 py-2 pl-1 pr-2 rounded-lg transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-white truncate">{player.name}</span>
-          {player.is_overseas && (
-            <Globe className="w-3 h-3 text-blue-400 flex-shrink-0" />
-          )}
-          <span className={clsx(
-            'text-[10px] px-1.5 py-0.5 rounded border',
-            ROLE_COLORS[player.role]
-          )}>
-            {ROLE_SHORT[player.role]}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 mt-0.5">
-          {player.role !== 'bowler' && player.batting_intent && (
-            <IntentBadge intent={player.batting_intent} compact />
-          )}
-          {player.traits && player.traits.length > 0 && (
-            <TraitBadges traits={player.traits} maxShow={2} compact />
-          )}
-        </div>
-      </button>
-
-      {/* Stats */}
-      <div className="flex items-center gap-2 text-xs flex-shrink-0">
-        <div className="text-center">
-          <p className={clsx(
-            'font-semibold',
-            player.batting >= 70 ? 'text-pitch-400' : 'text-dark-300'
-          )}>
-            {player.batting}
-          </p>
-          <p className="text-[9px] text-dark-500">BAT</p>
-        </div>
-        <div className="text-center">
-          <p className={clsx(
-            'font-semibold',
-            player.bowling >= 70 ? 'text-purple-400' : 'text-dark-300'
-          )}>
-            {player.bowling}
-          </p>
-          <p className="text-[9px] text-dark-500">BWL</p>
-        </div>
-      </div>
-
-      {/* Remove button */}
-      {onRemove && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="p-1.5 rounded-lg hover:bg-ball-500/20 text-dark-400 hover:text-ball-400 transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      )}
-    </div>
-  );
-}
-
 // Sortable batting order item
 function SortableBattingItem({
   player,
@@ -192,6 +89,7 @@ function SortableBattingItem({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+    zIndex: isDragging ? 50 : undefined,
   };
 
   return (
@@ -200,15 +98,94 @@ function SortableBattingItem({
       style={style}
       {...attributes}
       {...listeners}
-      className="touch-none"
+      className={clsx(
+        'touch-none',
+        isDragging && 'relative'
+      )}
     >
-      <BattingItemContent
-        player={player}
-        position={position}
-        onRemove={onRemove}
-        onShowDetails={onShowDetails}
-        isDragging={isDragging}
-      />
+      <div
+        className={clsx(
+          'flex items-center gap-2 p-3 rounded-xl border transition-all',
+          isDragging
+            ? 'bg-pitch-500/20 border-pitch-500 shadow-xl shadow-pitch-500/25 scale-[1.02]'
+            : 'bg-dark-800/50 border-dark-700/50 hover:border-dark-600'
+        )}
+      >
+        {/* Position number */}
+        <div className="w-7 h-7 rounded-full bg-dark-700 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+          {position}
+        </div>
+
+        {/* Drag handle */}
+        <div className="p-1 rounded text-dark-400 cursor-grab active:cursor-grabbing">
+          <GripVertical className="w-4 h-4" />
+        </div>
+
+        {/* Player info - clickable for details */}
+        <button
+          onClick={(e) => {
+            if (!isDragging) {
+              e.stopPropagation();
+              onShowDetails();
+            }
+          }}
+          className="flex-1 min-w-0 text-left hover:bg-dark-700/30 -my-2 -ml-1 py-2 pl-1 pr-2 rounded-lg transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-white truncate">{player.name}</span>
+            {player.is_overseas && (
+              <Globe className="w-3 h-3 text-blue-400 flex-shrink-0" />
+            )}
+            <span className={clsx(
+              'text-[10px] px-1.5 py-0.5 rounded border',
+              ROLE_COLORS[player.role]
+            )}>
+              {ROLE_SHORT[player.role]}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 mt-0.5">
+            {player.role !== 'bowler' && player.batting_intent && (
+              <IntentBadge intent={player.batting_intent} compact />
+            )}
+            {player.traits && player.traits.length > 0 && (
+              <TraitBadges traits={player.traits} maxShow={2} compact />
+            )}
+          </div>
+        </button>
+
+        {/* Stats */}
+        <div className="flex items-center gap-2 text-xs flex-shrink-0">
+          <div className="text-center">
+            <p className={clsx(
+              'font-semibold',
+              player.batting >= 70 ? 'text-pitch-400' : 'text-dark-300'
+            )}>
+              {player.batting}
+            </p>
+            <p className="text-[9px] text-dark-500">BAT</p>
+          </div>
+          <div className="text-center">
+            <p className={clsx(
+              'font-semibold',
+              player.bowling >= 70 ? 'text-purple-400' : 'text-dark-300'
+            )}>
+              {player.bowling}
+            </p>
+            <p className="text-[9px] text-dark-500">BWL</p>
+          </div>
+        </div>
+
+        {/* Remove button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="p-1.5 rounded-lg hover:bg-ball-500/20 text-dark-400 hover:text-ball-400 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -391,13 +368,8 @@ export function PlayingXIPage() {
   const queryClient = useQueryClient();
   const { careerId, career } = useGameStore();
   const [battingOrder, setBattingOrder] = useState<number[]>([]);
-  const [activeId, setActiveId] = useState<number | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
-  // Track the offset from where user grabbed the card
-  const grabOffset = useRef({ x: 0, y: 0 });
-
-  // Check if we came from pre-match flow
   const returnTo = searchParams.get('returnTo');
   const isPreMatch = returnTo?.startsWith('/match/');
 
@@ -486,59 +458,15 @@ export function PlayingXIPage() {
     setBattingOrder(battingOrder.filter(id => id !== playerId));
   };
 
-  // Handle drag start - calculate grab offset
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active, activatorEvent } = event;
-    setActiveId(active.id as number);
-
-    // Calculate offset from where user grabbed the card
-    const nativeEvent = activatorEvent as PointerEvent | TouchEvent | null;
-    if (nativeEvent && active.rect.current.translated) {
-      const rect = active.rect.current.translated;
-      let clientX: number, clientY: number;
-
-      if ('touches' in nativeEvent && nativeEvent.touches.length > 0) {
-        clientX = nativeEvent.touches[0].clientX;
-        clientY = nativeEvent.touches[0].clientY;
-      } else if ('clientX' in nativeEvent) {
-        clientX = nativeEvent.clientX;
-        clientY = nativeEvent.clientY;
-      } else {
-        return;
-      }
-
-      // Store offset from center of element to grab point
-      grabOffset.current = {
-        x: clientX - (rect.left + rect.width / 2),
-        y: clientY - (rect.top + rect.height / 2),
-      };
-    }
-  };
-
-  // Custom modifier to apply grab offset to DragOverlay
-  const adjustTranslate: Modifier = useCallback(({ transform }) => {
-    return {
-      ...transform,
-      x: transform.x - grabOffset.current.x,
-      y: transform.y - grabOffset.current.y,
-    };
-  }, []);
-
   // Handle drag end for reordering
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    setActiveId(null);
-
     if (over && active.id !== over.id) {
       const oldIndex = battingOrder.indexOf(active.id as number);
       const newIndex = battingOrder.indexOf(over.id as number);
       setBattingOrder(arrayMove(battingOrder, oldIndex, newIndex));
     }
   };
-
-  // Get the active player for the drag overlay
-  const activePlayer = activeId ? getPlayer(activeId) : null;
-  const activePosition = activeId ? battingOrder.indexOf(activeId) + 1 : 0;
 
   if (squadLoading || xiLoading) {
     return <Loading fullScreen text="Loading squad..." />;
@@ -602,7 +530,6 @@ export function PlayingXIPage() {
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
-                onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
@@ -633,17 +560,6 @@ export function PlayingXIPage() {
                     )}
                   </div>
                 </SortableContext>
-
-                {/* Drag Overlay - this is what follows the cursor/finger */}
-                <DragOverlay modifiers={[adjustTranslate]} dropAnimation={null}>
-                  {activePlayer && (
-                    <BattingItemContent
-                      player={activePlayer}
-                      position={activePosition}
-                      isOverlay
-                    />
-                  )}
-                </DragOverlay>
               </DndContext>
 
               {/* Validation feedback */}
