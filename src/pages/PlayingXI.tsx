@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -34,7 +34,7 @@ import {
   useSensors,
   DragOverlay,
 } from '@dnd-kit/core';
-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
+import type { DragEndEvent, DragStartEvent, Modifier } from '@dnd-kit/core';
 import {
   arrayMove,
   SortableContext,
@@ -394,6 +394,9 @@ export function PlayingXIPage() {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
+  // Track the offset from where user grabbed the card
+  const grabOffset = useRef({ x: 0, y: 0 });
+
   // Check if we came from pre-match flow
   const returnTo = searchParams.get('returnTo');
   const isPreMatch = returnTo?.startsWith('/match/');
@@ -483,10 +486,43 @@ export function PlayingXIPage() {
     setBattingOrder(battingOrder.filter(id => id !== playerId));
   };
 
-  // Handle drag start
+  // Handle drag start - calculate grab offset
   const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as number);
+    const { active, activatorEvent } = event;
+    setActiveId(active.id as number);
+
+    // Calculate offset from where user grabbed the card
+    const nativeEvent = activatorEvent as PointerEvent | TouchEvent | null;
+    if (nativeEvent && active.rect.current.translated) {
+      const rect = active.rect.current.translated;
+      let clientX: number, clientY: number;
+
+      if ('touches' in nativeEvent && nativeEvent.touches.length > 0) {
+        clientX = nativeEvent.touches[0].clientX;
+        clientY = nativeEvent.touches[0].clientY;
+      } else if ('clientX' in nativeEvent) {
+        clientX = nativeEvent.clientX;
+        clientY = nativeEvent.clientY;
+      } else {
+        return;
+      }
+
+      // Store offset from center of element to grab point
+      grabOffset.current = {
+        x: clientX - (rect.left + rect.width / 2),
+        y: clientY - (rect.top + rect.height / 2),
+      };
+    }
   };
+
+  // Custom modifier to apply grab offset to DragOverlay
+  const adjustTranslate: Modifier = useCallback(({ transform }) => {
+    return {
+      ...transform,
+      x: transform.x - grabOffset.current.x,
+      y: transform.y - grabOffset.current.y,
+    };
+  }, []);
 
   // Handle drag end for reordering
   const handleDragEnd = (event: DragEndEvent) => {
@@ -599,7 +635,7 @@ export function PlayingXIPage() {
                 </SortableContext>
 
                 {/* Drag Overlay - this is what follows the cursor/finger */}
-                <DragOverlay>
+                <DragOverlay modifiers={[adjustTranslate]} dropAnimation={null}>
                   {activePlayer && (
                     <BattingItemContent
                       player={activePlayer}
