@@ -52,8 +52,9 @@ export function AIMatchSimulationOverlay({
 
         const result = await seasonApi.simulateNextMatch(careerId);
         setSimulatedMatches(prev => [...prev, { fixture, result: result.data }]);
-        // Update progress as we skip through
-        setProgress((i + 1) / totalMatches * 100);
+        // Update progress as we skip through (use Math.max to only go forward)
+        const skipProgress = ((i + 1) / totalMatches) * 100;
+        setProgress(prev => Math.max(prev, skipProgress));
       }
     } catch (error) {
       console.error('Failed to simulate matches:', error);
@@ -74,8 +75,10 @@ export function AIMatchSimulationOverlay({
 
     const simulateMatch = async () => {
       setPhase('simulating');
-      // Set progress to show we're working on this match (halfway point)
-      setProgress((currentIndex + 0.3) / totalMatches * 100);
+      // Set progress to show we're working on this match
+      // Use Math.max to ensure progress only ever increases (prevents flickering)
+      const simulatingProgress = ((currentIndex + 0.3) / totalMatches) * 100;
+      setProgress(prev => Math.max(prev, simulatingProgress));
 
       // Add a small delay for visual effect
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -90,7 +93,9 @@ export function AIMatchSimulationOverlay({
         setSimulatedMatches(prev => [...prev, { fixture: currentFixture, result: result.data }]);
         setPhase('showing_result');
         // Update progress to show this match is complete
-        setProgress((currentIndex + 1) / totalMatches * 100);
+        // Use Math.max to ensure progress only ever increases
+        const completedProgress = ((currentIndex + 1) / totalMatches) * 100;
+        setProgress(prev => Math.max(prev, completedProgress));
 
         // Show result for 3.5 seconds (more time to read), then transition
         setTimeout(() => {
