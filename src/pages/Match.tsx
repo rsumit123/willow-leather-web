@@ -41,8 +41,8 @@ export function MatchPage() {
     detail?: string;
   } | null>(null);
 
-  // Track previous striker runs for milestone detection
-  const prevStrikerRunsRef = useRef<number>(0);
+  // Track previous runs by player ID to detect 50/100 milestones correctly
+  const playerMilestonesRef = useRef<Record<number, { shown50: boolean; shown100: boolean }>>({});
   const consecutiveWicketsRef = useRef<number>(0);
   const lastBowlerIdRef = useRef<number | null>(null);
 
@@ -113,31 +113,38 @@ export function MatchPage() {
       // Check for milestones (only if innings didn't just change)
       if (!newState.innings_just_changed) {
         const striker = newState.striker;
-        const prevRuns = prevStrikerRunsRef.current;
 
-        // Check for 50 or 100
+        // Check for 50 or 100 - track per player ID to avoid duplicate alerts
         if (striker) {
-          if (prevRuns < 50 && striker.runs >= 50 && striker.runs < 100) {
-            setMilestone({
-              type: 'fifty',
-              playerName: striker.name,
-              detail: `${striker.runs} (${striker.balls})`
-            });
-          } else if (prevRuns < 100 && striker.runs >= 100) {
+          const playerId = striker.id;
+          if (!playerMilestonesRef.current[playerId]) {
+            playerMilestonesRef.current[playerId] = { shown50: false, shown100: false };
+          }
+          const milestones = playerMilestonesRef.current[playerId];
+
+          if (striker.runs >= 100 && !milestones.shown100) {
+            milestones.shown100 = true;
+            milestones.shown50 = true; // Also mark 50 as shown
             setMilestone({
               type: 'hundred',
               playerName: striker.name,
               detail: `${striker.runs} (${striker.balls})`
             });
+          } else if (striker.runs >= 50 && striker.runs < 100 && !milestones.shown50) {
+            milestones.shown50 = true;
+            setMilestone({
+              type: 'fifty',
+              playerName: striker.name,
+              detail: `${striker.runs} (${striker.balls})`
+            });
           }
-          prevStrikerRunsRef.current = striker.runs;
         }
 
         // Check for wicket
         if (ballResult.is_wicket) {
           const bowler = newState.bowler;
 
-          // Track consecutive wickets for hat-trick
+          // Track consecutive wickets for hat-trick (must be same bowler, consecutive balls)
           if (bowler && lastBowlerIdRef.current === bowler.id) {
             consecutiveWicketsRef.current++;
           } else {
@@ -160,14 +167,12 @@ export function MatchPage() {
             });
           }
         } else {
-          // Reset consecutive wickets if not a wicket
-          if (lastBowlerIdRef.current !== newState.bowler?.id) {
-            consecutiveWicketsRef.current = 0;
-          }
+          // Reset consecutive wickets on ANY non-wicket ball (hat-trick requires 3 consecutive wicket balls)
+          consecutiveWicketsRef.current = 0;
         }
       } else {
         // Reset tracking on innings change
-        prevStrikerRunsRef.current = 0;
+        playerMilestonesRef.current = {};
         consecutiveWicketsRef.current = 0;
         lastBowlerIdRef.current = null;
       }
