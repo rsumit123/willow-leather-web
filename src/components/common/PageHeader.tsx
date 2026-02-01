@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Menu, X, Home as HomeIcon, Plus, Trophy } from 'lucide-react';
+import { ArrowLeft, Menu, X, Home as HomeIcon, Plus, Trophy, LogOut } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
+import { useAuthStore } from '../../store/authStore';
+import { UserMenu } from './UserMenu';
 
 interface PageHeaderProps {
   title?: string;
@@ -14,6 +16,7 @@ interface PageHeaderProps {
 export function PageHeader({ title, showBack = false, backTo, showBrand = true }: PageHeaderProps) {
   const navigate = useNavigate();
   const { clearGame, career } = useGameStore();
+  const { logout } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const handleBack = () => {
@@ -32,6 +35,13 @@ export function PageHeader({ title, showBack = false, backTo, showBrand = true }
   const handleNewCareer = () => {
     clearGame();
     navigate('/');
+    setMenuOpen(false);
+  };
+
+  const handleLogout = () => {
+    clearGame();
+    logout();
+    navigate('/login');
     setMenuOpen(false);
   };
 
@@ -70,7 +80,7 @@ export function PageHeader({ title, showBack = false, backTo, showBrand = true }
           </div>
         )}
 
-        {/* Right side - Team badge and Menu */}
+        {/* Right side - Team badge, User menu, and Menu */}
         <div className="flex items-center gap-2">
           {career?.user_team && (
             <div
@@ -84,6 +94,8 @@ export function PageHeader({ title, showBack = false, backTo, showBrand = true }
               {career.user_team.short_name}
             </div>
           )}
+
+          <UserMenu />
 
           <button
             onClick={() => setMenuOpen(!menuOpen)}
@@ -131,6 +143,21 @@ export function PageHeader({ title, showBack = false, backTo, showBrand = true }
                 <div>
                   <p className="font-medium text-white">New Career</p>
                   <p className="text-xs text-dark-400">Start fresh</p>
+                </div>
+              </button>
+
+              <div className="border-t border-dark-700/50 my-2" />
+
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-dark-800/50 rounded-lg transition-colors text-left"
+              >
+                <div className="w-9 h-9 rounded-lg bg-red-500/20 flex items-center justify-center">
+                  <LogOut className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-red-400">Sign Out</p>
+                  <p className="text-xs text-dark-400">Log out of your account</p>
                 </div>
               </button>
             </div>

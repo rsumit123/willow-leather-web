@@ -13,12 +13,17 @@ import {
   Award,
   TrendingUp,
   Shield,
+  LogOut,
+  User,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { careerApi } from '../api/client';
 import { useGameStore } from '../store/gameStore';
+import { useAuthStore } from '../store/authStore';
 import { Loading } from '../components/common/Loading';
 import clsx from 'clsx';
+
+const MAX_CAREERS = 3;
 
 const features = [
   {
@@ -74,6 +79,7 @@ const traits = [
 export function HomePage() {
   const navigate = useNavigate();
   const { careerId, setCareer, clearGame } = useGameStore();
+  const { user, logout } = useAuthStore();
 
   // Load saved careers
   const { data: careers, isLoading } = useQuery({
@@ -91,6 +97,15 @@ export function HomePage() {
       }
     }
   }, [careerId, careers]);
+
+  const handleLogout = () => {
+    clearGame();
+    logout();
+    navigate('/login');
+  };
+
+  const careerCount = careers?.length || 0;
+  const canCreateCareer = careerCount < MAX_CAREERS;
 
   if (isLoading) {
     return <Loading fullScreen text="Loading..." />;
@@ -122,8 +137,42 @@ export function HomePage() {
 
       {/* Content */}
       <div className="relative">
+        {/* User Info Bar */}
+        {user && (
+          <div className="absolute top-0 left-0 right-0 z-10 p-4">
+            <div className="max-w-7xl mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {user.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={user.name}
+                    className="w-10 h-10 rounded-full border-2 border-white/20"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-pitch-500/20 flex items-center justify-center">
+                    <User className="w-5 h-5 text-pitch-400" />
+                  </div>
+                )}
+                <div>
+                  <p className="text-white font-medium text-sm">{user.name}</p>
+                  <p className="text-emerald-300/60 text-xs">
+                    {careerCount}/{MAX_CAREERS} careers
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-dark-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Sign out</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Hero Section - Responsive layout */}
-        <section className="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12">
+        <section className="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12 pt-24">
           <div className="max-w-7xl w-full">
             <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
               {/* Left side - Text content */}
@@ -196,16 +245,25 @@ export function HomePage() {
                 >
                   <motion.button
                     onClick={() => {
-                      clearGame();
-                      navigate('/new-career');
+                      if (canCreateCareer) {
+                        clearGame();
+                        navigate('/new-career');
+                      }
                     }}
-                    className="btn-primary flex items-center justify-center gap-2 text-lg py-4 px-8"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    disabled={!canCreateCareer}
+                    className={clsx(
+                      "flex items-center justify-center gap-2 text-lg py-4 px-8",
+                      canCreateCareer
+                        ? "btn-primary"
+                        : "bg-dark-700 text-dark-400 cursor-not-allowed rounded-xl"
+                    )}
+                    whileHover={canCreateCareer ? { scale: 1.02 } : {}}
+                    whileTap={canCreateCareer ? { scale: 0.98 } : {}}
+                    title={!canCreateCareer ? `Maximum ${MAX_CAREERS} careers. Delete one to create more.` : undefined}
                   >
                     <Sparkles className="w-5 h-5" />
-                    Start New Career
-                    <ChevronRight className="w-5 h-5" />
+                    {canCreateCareer ? 'Start New Career' : `Max ${MAX_CAREERS} Careers`}
+                    {canCreateCareer && <ChevronRight className="w-5 h-5" />}
                   </motion.button>
 
                   {careers && careers.length > 0 && (

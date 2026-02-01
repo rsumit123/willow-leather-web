@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { showDevToast } from '../components/common/DevToast';
+import { useAuthStore } from '../store/authStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -10,10 +11,87 @@ export const api = axios.create({
   },
 });
 
-// Development mode error interceptor - shows API errors as toasts
+// Request interceptor - Add Authorization header
+api.interceptors.request.use(
+  (config) => {
+    const token = useAuthStore.getState().accessToken;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor - Handle 401 and refresh tokens
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (error: unknown) => void;
+}> = [];
+
+const processQueue = (error: unknown, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else if (token) {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Handle 401 Unauthorized
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // Queue the request while refreshing
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      const refreshToken = useAuthStore.getState().refreshToken;
+
+      if (!refreshToken) {
+        // No refresh token, logout
+        useAuthStore.getState().logout();
+        window.location.href = '/login';
+        return Promise.reject(error);
+      }
+
+      try {
+        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
+          refresh_token: refreshToken,
+        });
+
+        const newAccessToken = response.data.access_token;
+        useAuthStore.getState().setAccessToken(newAccessToken);
+
+        processQueue(null, newAccessToken);
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        useAuthStore.getState().logout();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    // Development mode error toasts
     if (import.meta.env.VITE_DEV_MODE === 'true') {
       const url = error.config?.url || 'unknown';
       const method = error.config?.method?.toUpperCase() || 'REQUEST';
@@ -58,6 +136,30 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Auth API functions
+export interface AuthResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  user: {
+    id: number;
+    email: string;
+    name: string;
+    avatar_url?: string;
+  };
+}
+
+export const authApi = {
+  googleLogin: (token: string) =>
+    api.post<AuthResponse>('/auth/google', { token }),
+  refreshToken: (refreshToken: string) =>
+    api.post<{ access_token: string; token_type: string }>('/auth/refresh', { refresh_token: refreshToken }),
+  getMe: () =>
+    api.get<AuthResponse['user']>('/auth/me'),
+  logout: () =>
+    api.post('/auth/logout'),
+};
 
 // Types
 export interface Team {

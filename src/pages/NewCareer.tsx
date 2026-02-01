@@ -7,6 +7,7 @@ import { careerApi } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { TeamCard } from '../components/common/TeamCard';
+import { UserMenu } from '../components/common/UserMenu';
 
 export function NewCareerPage() {
   const navigate = useNavigate();
@@ -57,15 +58,18 @@ export function NewCareerPage() {
           <h1 className="ml-2 font-semibold">New Career</h1>
 
           {/* Step indicator */}
-          <div className="ml-auto flex items-center gap-2">
-            {[1, 2].map((s) => (
-              <div
-                key={s}
-                className={`w-2 h-2 rounded-full transition-colors ${
-                  s === step ? 'bg-pitch-500' : 'bg-dark-600'
-                }`}
-              />
-            ))}
+          <div className="ml-auto flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              {[1, 2].map((s) => (
+                <div
+                  key={s}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    s === step ? 'bg-pitch-500' : 'bg-dark-600'
+                  }`}
+                />
+              ))}
+            </div>
+            <UserMenu />
           </div>
         </div>
       </header>

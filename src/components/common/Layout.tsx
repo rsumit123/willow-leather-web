@@ -10,8 +10,10 @@ import {
   X,
   Plus,
   LogOut,
+  User,
 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
+import { useAuthStore } from '../../store/authStore';
 import clsx from 'clsx';
 
 const navItems = [
@@ -25,6 +27,7 @@ export function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { career, clearGame } = useGameStore();
+  const { user, logout } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Hide nav on certain pages
@@ -40,6 +43,13 @@ export function Layout() {
 
   const handleGoHome = () => {
     navigate('/');
+    setMenuOpen(false);
+  };
+
+  const handleLogout = () => {
+    clearGame();
+    logout();
+    navigate('/login');
     setMenuOpen(false);
   };
 
@@ -73,6 +83,23 @@ export function Layout() {
                 Season {career.current_season_number}
               </span>
 
+              {/* User Avatar */}
+              {user && (
+                <div className="hidden sm:block">
+                  {user.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt={user.name}
+                      className="w-8 h-8 rounded-full border border-dark-700"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-pitch-500/20 flex items-center justify-center">
+                      <User className="w-4 h-4 text-pitch-400" />
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Menu Button */}
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
@@ -97,11 +124,32 @@ export function Layout() {
                 className="border-t border-dark-800 overflow-hidden"
               >
                 <div className="max-w-lg mx-auto px-4 py-2">
+                  {/* User info in menu */}
+                  {user && (
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-dark-700/50 mb-2">
+                      {user.avatar_url ? (
+                        <img
+                          src={user.avatar_url}
+                          alt={user.name}
+                          className="w-10 h-10 rounded-full border border-dark-700"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-pitch-500/20 flex items-center justify-center">
+                          <User className="w-5 h-5 text-pitch-400" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-medium text-white">{user.name}</p>
+                        <p className="text-xs text-dark-400">{user.email}</p>
+                      </div>
+                    </div>
+                  )}
+
                   <button
                     onClick={handleGoHome}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-dark-800 rounded-lg transition-colors text-left"
                   >
-                    <LogOut className="w-5 h-5 text-dark-400" />
+                    <Home className="w-5 h-5 text-dark-400" />
                     <div>
                       <p className="font-medium text-white">Main Menu</p>
                       <p className="text-xs text-dark-400">View all careers</p>
@@ -118,6 +166,19 @@ export function Layout() {
                       <p className="text-xs text-dark-400">Start fresh</p>
                     </div>
                   </button>
+
+                  <div className="border-t border-dark-700/50 mt-2 pt-2">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-dark-800 rounded-lg transition-colors text-left"
+                    >
+                      <LogOut className="w-5 h-5 text-red-400" />
+                      <div>
+                        <p className="font-medium text-red-400">Sign Out</p>
+                        <p className="text-xs text-dark-400">Log out of your account</p>
+                      </div>
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             )}

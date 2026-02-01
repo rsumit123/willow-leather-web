@@ -1,7 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Layout } from './components/common/Layout';
 import { DevToastProvider } from './components/common/DevToast';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import LoginPage from './pages/Login';
 import { HomePage } from './pages/Home';
 import { NewCareerPage } from './pages/NewCareer';
 import { AuctionPage } from './pages/Auction';
@@ -23,31 +26,41 @@ const queryClient = new QueryClient({
   },
 });
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_OAUTH2_CLIENT_ID || '';
+
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <DevToastProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/new-career" element={<NewCareerPage />} />
-            <Route path="/auction" element={<AuctionPage />} />
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <QueryClientProvider client={queryClient}>
+        <DevToastProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Public route */}
+              <Route path="/login" element={<LoginPage />} />
 
-            <Route element={<Layout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/squad" element={<SquadPage />} />
-              <Route path="/standings" element={<StandingsPage />} />
-              <Route path="/fixtures" element={<FixturesPage />} />
-              <Route path="/match/:fixtureId" element={<MatchPage />} />
-              <Route path="/playing-xi" element={<PlayingXIPage />} />
-              <Route path="/leaderboards" element={<LeaderboardsPage />} />
-            </Route>
+              {/* Protected routes */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/new-career" element={<NewCareerPage />} />
+                <Route path="/auction" element={<AuctionPage />} />
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </DevToastProvider>
-    </QueryClientProvider>
+                <Route element={<Layout />}>
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/squad" element={<SquadPage />} />
+                  <Route path="/standings" element={<StandingsPage />} />
+                  <Route path="/fixtures" element={<FixturesPage />} />
+                  <Route path="/match/:fixtureId" element={<MatchPage />} />
+                  <Route path="/playing-xi" element={<PlayingXIPage />} />
+                  <Route path="/leaderboards" element={<LeaderboardsPage />} />
+                </Route>
+              </Route>
+
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </DevToastProvider>
+      </QueryClientProvider>
+    </GoogleOAuthProvider>
   );
 }
 
