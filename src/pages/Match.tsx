@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { matchApi, seasonApi, careerApi, type BallResult, type TossResult } from '../api/client';
@@ -15,6 +15,7 @@ import { BowlerSelection } from '../components/match/BowlerSelection';
 import { ScorecardDrawer } from '../components/match/ScorecardDrawer';
 import { MatchCompletionScreen } from '../components/match/MatchCompletionScreen';
 import { PreMatchXIReview } from '../components/match/PreMatchXIReview';
+import { MilestoneAlert, type MilestoneType } from '../components/match/MilestoneAlert';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 
@@ -32,6 +33,18 @@ export function MatchPage() {
   const [inningsChangeInfo, setInningsChangeInfo] = useState<{ target: number; battingTeam: string } | null>(null);
   const [showBowlerSelect, setShowBowlerSelect] = useState(false);
   const [showScorecard, setShowScorecard] = useState(false);
+
+  // Milestone alert state
+  const [milestone, setMilestone] = useState<{
+    type: MilestoneType;
+    playerName: string;
+    detail?: string;
+  } | null>(null);
+
+  // Track previous striker runs for milestone detection
+  const prevStrikerRunsRef = useRef<number>(0);
+  const consecutiveWicketsRef = useRef<number>(0);
+  const lastBowlerIdRef = useRef<number | null>(null);
 
   const fid = parseInt(fixtureId || '0');
 
@@ -91,13 +104,79 @@ export function MatchPage() {
   const playBallMutation = useMutation({
     mutationFn: (agg: string) => matchApi.playBall(careerId!, fid, agg),
     onSuccess: (response) => {
-      setLastBall(response.data);
-      queryClient.setQueryData(['match-state', careerId, fid], response.data.match_state);
+      const ballResult = response.data;
+      const newState = ballResult.match_state;
+
+      setLastBall(ballResult);
+      queryClient.setQueryData(['match-state', careerId, fid], newState);
+
+      // Check for milestones (only if innings didn't just change)
+      if (!newState.innings_just_changed) {
+        const striker = newState.striker;
+        const prevRuns = prevStrikerRunsRef.current;
+
+        // Check for 50 or 100
+        if (striker) {
+          if (prevRuns < 50 && striker.runs >= 50 && striker.runs < 100) {
+            setMilestone({
+              type: 'fifty',
+              playerName: striker.name,
+              detail: `${striker.runs} (${striker.balls})`
+            });
+          } else if (prevRuns < 100 && striker.runs >= 100) {
+            setMilestone({
+              type: 'hundred',
+              playerName: striker.name,
+              detail: `${striker.runs} (${striker.balls})`
+            });
+          }
+          prevStrikerRunsRef.current = striker.runs;
+        }
+
+        // Check for wicket
+        if (ballResult.is_wicket) {
+          const bowler = newState.bowler;
+
+          // Track consecutive wickets for hat-trick
+          if (bowler && lastBowlerIdRef.current === bowler.id) {
+            consecutiveWicketsRef.current++;
+          } else {
+            consecutiveWicketsRef.current = 1;
+          }
+          lastBowlerIdRef.current = bowler?.id || null;
+
+          // Show hat-trick or wicket alert
+          if (consecutiveWicketsRef.current >= 3 && bowler) {
+            setMilestone({
+              type: 'hatrick',
+              playerName: bowler.name,
+              detail: `${bowler.wickets}/${bowler.runs}`
+            });
+          } else if (bowler) {
+            setMilestone({
+              type: 'wicket',
+              playerName: bowler.name,
+              detail: ballResult.commentary
+            });
+          }
+        } else {
+          // Reset consecutive wickets if not a wicket
+          if (lastBowlerIdRef.current !== newState.bowler?.id) {
+            consecutiveWicketsRef.current = 0;
+          }
+        }
+      } else {
+        // Reset tracking on innings change
+        prevStrikerRunsRef.current = 0;
+        consecutiveWicketsRef.current = 0;
+        lastBowlerIdRef.current = null;
+      }
+
       // Check for innings change
-      if (response.data.match_state.innings_just_changed) {
+      if (newState.innings_just_changed) {
         setInningsChangeInfo({
-          target: response.data.match_state.target || 0,
-          battingTeam: response.data.match_state.batting_team_name
+          target: newState.target || 0,
+          battingTeam: newState.batting_team_name
         });
         setShowInningsChange(true);
       }
@@ -206,6 +285,14 @@ export function MatchPage() {
     }
   }, [state?.can_change_bowler, state?.bowler, showBowlerSelect, showInningsChange, queryClient, careerId, fid]);
 
+  // Auto-dismiss milestone alert after 3 seconds
+  useEffect(() => {
+    if (milestone) {
+      const timer = setTimeout(() => setMilestone(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [milestone]);
+
   // Check if match is already in progress (skip pre-match and toss)
   // If there's an error (404 - session lost), show toss screen to restart
   useEffect(() => {
@@ -304,6 +391,15 @@ export function MatchPage() {
 
   return (
     <ErrorBoundary>
+      {/* Milestone Alert */}
+      <MilestoneAlert
+        type={milestone?.type || 'fifty'}
+        playerName={milestone?.playerName || ''}
+        detail={milestone?.detail}
+        isVisible={!!milestone}
+        onClose={() => setMilestone(null)}
+      />
+
       {/* Innings Change Modal */}
       <AnimatePresence>
         {showInningsChange && inningsChangeInfo && (
@@ -365,6 +461,7 @@ export function MatchPage() {
           <BattingSection
             striker={state.striker}
             nonStriker={state.non_striker}
+            partnershipRuns={state.partnership_runs}
           />
 
           <BowlingSection bowler={state.bowler} />
@@ -379,7 +476,7 @@ export function MatchPage() {
           onSimulateOver={() => simulateOverMutation.mutate(aggression)}
           onSimulateInnings={() => simulateInningsMutation.mutate()}
           isLoading={playBallMutation.isPending || simulateOverMutation.isPending || simulateInningsMutation.isPending}
-          disabled={showBowlerSelect || showInningsChange}
+          disabled={showBowlerSelect || showInningsChange || (state?.can_change_bowler && !state?.bowler)}
         />
 
         {/* Scorecard Drawer */}

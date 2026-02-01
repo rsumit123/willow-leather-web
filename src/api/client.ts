@@ -419,6 +419,7 @@ export interface BowlerScorecardEntry {
   economy: number;
   wides: number;
   no_balls: number;
+  traits: string[];
 }
 
 export interface ExtrasBreakdown {

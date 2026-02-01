@@ -120,7 +120,14 @@ function InningsTab({ innings, isActive }: { innings: InningsScorecard; isActive
                 <tbody>
                   {innings.bowlers.map((bowler) => (
                     <tr key={bowler.player_id} className="border-t border-dark-800">
-                      <td className="py-2 pr-2 font-medium text-white">{bowler.player_name}</td>
+                      <td className="py-2 pr-2">
+                        <div className="font-medium text-white flex items-center gap-1">
+                          <span>{bowler.player_name}</span>
+                          {bowler.traits && bowler.traits.map((trait) => (
+                            <TraitBadge key={trait} trait={trait} compact clickable />
+                          ))}
+                        </div>
+                      </td>
                       <td className="text-right px-1 text-dark-400">{bowler.overs}</td>
                       <td className="text-right px-1 text-dark-400">{bowler.runs}</td>
                       <td className="text-right px-1 text-white font-medium">{bowler.wickets}</td>
