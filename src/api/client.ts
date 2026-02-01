@@ -463,8 +463,23 @@ export interface MatchCompletionResponse {
   man_of_the_match: ManOfTheMatch;
 }
 
+// Player details included in leaderboard entries for modal display
+interface LeaderboardPlayerDetails {
+  role: string;
+  is_overseas: boolean;
+  age: number;
+  batting_style: string;
+  bowling_type: string;
+  batting: number;
+  bowling: number;
+  power: number;
+  overall_rating: number;
+  traits: string[];
+  batting_intent: string;
+}
+
 // Leaderboard types
-export interface BatterLeaderboardEntry {
+export interface BatterLeaderboardEntry extends LeaderboardPlayerDetails {
   rank: number;
   player_id: number;
   player_name: string;
@@ -481,7 +496,7 @@ export interface BatterLeaderboardEntry {
   highest_score: number;
 }
 
-export interface BowlerLeaderboardEntry {
+export interface BowlerLeaderboardEntry extends LeaderboardPlayerDetails {
   rank: number;
   player_id: number;
   player_name: string;
@@ -496,7 +511,7 @@ export interface BowlerLeaderboardEntry {
   best_bowling: string;
 }
 
-export interface SixesLeaderboardEntry {
+export interface SixesLeaderboardEntry extends LeaderboardPlayerDetails {
   rank: number;
   player_id: number;
   player_name: string;
@@ -507,7 +522,7 @@ export interface SixesLeaderboardEntry {
   matches: number;
 }
 
-export interface CatchesLeaderboardEntry {
+export interface CatchesLeaderboardEntry extends LeaderboardPlayerDetails {
   rank: number;
   player_id: number;
   player_name: string;

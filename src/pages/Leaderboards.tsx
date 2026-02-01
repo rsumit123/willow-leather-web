@@ -3,22 +3,62 @@ import { motion } from 'framer-motion';
 import { Trophy, Target, Zap, Shield } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { seasonApi } from '../api/client';
+import type { Player, BatterLeaderboardEntry, BowlerLeaderboardEntry, SixesLeaderboardEntry, CatchesLeaderboardEntry } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { PageHeader } from '../components/common/PageHeader';
+import { PlayerDetailModal } from '../components/common/PlayerDetailModal';
 import clsx from 'clsx';
 
 type LeaderboardTab = 'orange' | 'purple' | 'sixes' | 'catches';
 
+// Union type for all leaderboard entries
+type LeaderboardEntry = BatterLeaderboardEntry | BowlerLeaderboardEntry | SixesLeaderboardEntry | CatchesLeaderboardEntry;
+
+// Convert leaderboard entry to Player type for modal
+function toPlayer(entry: LeaderboardEntry): Player {
+  return {
+    id: entry.player_id,
+    name: entry.player_name,
+    age: entry.age,
+    nationality: '', // Not available in leaderboard
+    is_overseas: entry.is_overseas,
+    role: entry.role,
+    batting: entry.batting,
+    bowling: entry.bowling,
+    overall_rating: entry.overall_rating,
+    team_id: entry.team_id,
+    base_price: 0,
+    form: 1.0,
+    batting_style: entry.batting_style,
+    bowling_type: entry.bowling_type,
+    power: entry.power,
+    traits: entry.traits,
+    batting_intent: entry.batting_intent,
+  };
+}
+
 export function LeaderboardsPage() {
   const { careerId, career } = useGameStore();
   const [activeTab, setActiveTab] = useState<LeaderboardTab>('orange');
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { data: leaderboards, isLoading } = useQuery({
     queryKey: ['leaderboards', careerId],
     queryFn: () => seasonApi.getLeaderboards(careerId!).then((r) => r.data),
     enabled: !!careerId,
   });
+
+  const handlePlayerClick = (entry: LeaderboardEntry) => {
+    setSelectedPlayer(toPlayer(entry));
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedPlayer(null);
+  };
 
   if (isLoading || !leaderboards) {
     return <Loading fullScreen text="Loading leaderboards..." />;
@@ -103,8 +143,9 @@ export function LeaderboardsPage() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
+                  onClick={() => handlePlayerClick(player)}
                   className={clsx(
-                    'glass-card p-4 relative overflow-hidden',
+                    'glass-card p-4 relative overflow-hidden cursor-pointer hover:bg-dark-800/50 transition-colors',
                     player.rank === 1 && 'ring-2 ring-orange-500/50 border-orange-500/30'
                   )}
                 >
@@ -121,9 +162,16 @@ export function LeaderboardsPage() {
                       {player.rank}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={clsx('font-semibold truncate', player.rank === 1 ? 'text-orange-400' : 'text-white')}>
-                        {player.player_name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className={clsx('font-semibold truncate', player.rank === 1 ? 'text-orange-400' : 'text-white')}>
+                          {player.player_name}
+                        </p>
+                        {player.traits && player.traits.length > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-pitch-500/20 text-pitch-400">
+                            {player.traits.length} trait{player.traits.length > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-dark-400 text-xs">{player.team_short_name}</p>
                     </div>
                     <div className="text-right">
@@ -173,8 +221,9 @@ export function LeaderboardsPage() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
+                  onClick={() => handlePlayerClick(player)}
                   className={clsx(
-                    'glass-card p-4 relative overflow-hidden',
+                    'glass-card p-4 relative overflow-hidden cursor-pointer hover:bg-dark-800/50 transition-colors',
                     player.rank === 1 && 'ring-2 ring-purple-500/50 border-purple-500/30'
                   )}
                 >
@@ -191,9 +240,16 @@ export function LeaderboardsPage() {
                       {player.rank}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={clsx('font-semibold truncate', player.rank === 1 ? 'text-purple-400' : 'text-white')}>
-                        {player.player_name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className={clsx('font-semibold truncate', player.rank === 1 ? 'text-purple-400' : 'text-white')}>
+                          {player.player_name}
+                        </p>
+                        {player.traits && player.traits.length > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-pitch-500/20 text-pitch-400">
+                            {player.traits.length} trait{player.traits.length > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-dark-400 text-xs">{player.team_short_name}</p>
                     </div>
                     <div className="text-right">
@@ -243,8 +299,9 @@ export function LeaderboardsPage() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
+                  onClick={() => handlePlayerClick(player)}
                   className={clsx(
-                    'glass-card p-4 relative overflow-hidden',
+                    'glass-card p-4 relative overflow-hidden cursor-pointer hover:bg-dark-800/50 transition-colors',
                     player.rank === 1 && 'ring-2 ring-yellow-500/50 border-yellow-500/30'
                   )}
                 >
@@ -261,9 +318,16 @@ export function LeaderboardsPage() {
                       {player.rank}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={clsx('font-semibold truncate', player.rank === 1 ? 'text-yellow-400' : 'text-white')}>
-                        {player.player_name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className={clsx('font-semibold truncate', player.rank === 1 ? 'text-yellow-400' : 'text-white')}>
+                          {player.player_name}
+                        </p>
+                        {player.traits && player.traits.length > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-pitch-500/20 text-pitch-400">
+                            {player.traits.length} trait{player.traits.length > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-dark-400 text-xs">{player.team_short_name}</p>
                     </div>
                     <div className="text-right">
@@ -305,8 +369,9 @@ export function LeaderboardsPage() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
+                  onClick={() => handlePlayerClick(player)}
                   className={clsx(
-                    'glass-card p-4 relative overflow-hidden',
+                    'glass-card p-4 relative overflow-hidden cursor-pointer hover:bg-dark-800/50 transition-colors',
                     player.rank === 1 && 'ring-2 ring-blue-500/50 border-blue-500/30'
                   )}
                 >
@@ -323,9 +388,16 @@ export function LeaderboardsPage() {
                       {player.rank}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={clsx('font-semibold truncate', player.rank === 1 ? 'text-blue-400' : 'text-white')}>
-                        {player.player_name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className={clsx('font-semibold truncate', player.rank === 1 ? 'text-blue-400' : 'text-white')}>
+                          {player.player_name}
+                        </p>
+                        {player.traits && player.traits.length > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-pitch-500/20 text-pitch-400">
+                            {player.traits.length} trait{player.traits.length > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-dark-400 text-xs">{player.team_short_name}</p>
                     </div>
                     <div className="text-right">
@@ -365,12 +437,20 @@ export function LeaderboardsPage() {
             <span className="inline-block w-2 h-2 rounded-full bg-orange-500 mr-2" />
             Orange Cap: Top run scorer of the tournament
           </p>
-          <p>
+          <p className="mb-1">
             <span className="inline-block w-2 h-2 rounded-full bg-purple-500 mr-2" />
             Purple Cap: Top wicket taker of the tournament
           </p>
+          <p className="text-dark-500 mt-2">Tap on a player to view their full profile and traits</p>
         </div>
       </div>
+
+      {/* Player Detail Modal */}
+      <PlayerDetailModal
+        player={selectedPlayer}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+      />
     </>
   );
 }
