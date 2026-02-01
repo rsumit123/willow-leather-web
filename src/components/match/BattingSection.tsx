@@ -21,12 +21,10 @@ export function BattingSection({ striker, nonStriker, partnershipRuns }: Batting
     <div className="flex flex-col gap-2 px-4">
       <div className="flex items-center justify-between">
         <span className="text-[10px] uppercase font-bold tracking-widest text-dark-500">Batting</span>
-        {partnershipRuns !== undefined && partnershipRuns > 0 && (
-          <div className="flex items-center gap-1 text-[10px] text-dark-400">
-            <Users className="w-3 h-3" />
-            <span>Partnership: <span className="text-white font-medium">{partnershipRuns}</span></span>
-          </div>
-        )}
+        <div className="flex items-center gap-1 text-[10px] text-dark-400">
+          <Users className="w-3 h-3" />
+          <span>Partnership: <span className="text-white font-medium">{partnershipRuns ?? 0}</span></span>
+        </div>
       </div>
       <div className="bg-dark-800/50 backdrop-blur-sm rounded-xl border border-dark-700/50 overflow-hidden">
         {players.map(({ player, isStriker }, idx) => (
