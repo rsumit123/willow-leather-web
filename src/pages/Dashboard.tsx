@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Shield,
   Play,
+  Target,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { careerApi, seasonApi } from '../api/client';
@@ -77,6 +78,13 @@ export function DashboardPage() {
     queryKey: ['playing-xi', careerId],
     queryFn: () => careerApi.getPlayingXI(careerId!).then((r) => r.data),
     enabled: !!careerId && (careerData?.status === 'pre_season' || careerData?.status === 'in_season'),
+  });
+
+  // Get leaderboards for preview cards
+  const { data: leaderboards } = useQuery({
+    queryKey: ['leaderboards', careerId],
+    queryFn: () => seasonApi.getLeaderboards(careerId!).then((r) => r.data),
+    enabled: !!careerId && (careerData?.status === 'in_season' || careerData?.status === 'playoffs' || careerData?.status === 'post_season'),
   });
 
   // Generate fixtures mutation
@@ -708,6 +716,92 @@ export function DashboardPage() {
             </Link>
           )}
         </motion.div>
+
+        {/* Leaderboards Preview */}
+        {leaderboards && (leaderboards.orange_cap.length > 0 || leaderboards.purple_cap.length > 0) && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="grid grid-cols-2 gap-3"
+          >
+            {/* Orange Cap Preview */}
+            <Link
+              to="/leaderboards"
+              className="glass-card p-4 hover:border-orange-500/30 transition-colors"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                    <Trophy className="w-4 h-4 text-orange-500" />
+                  </div>
+                  <span className="text-xs font-medium text-orange-400">Orange Cap</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-dark-500" />
+              </div>
+              {leaderboards.orange_cap.length > 0 ? (
+                <div className="space-y-2">
+                  {leaderboards.orange_cap.slice(0, 3).map((player, i) => (
+                    <div key={player.player_id} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className={clsx(
+                          'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold',
+                          i === 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                          i === 1 ? 'bg-gray-400/20 text-gray-400' :
+                          'bg-amber-600/20 text-amber-500'
+                        )}>{i + 1}</span>
+                        <span className="text-dark-300 truncate max-w-[80px]">{player.player_name}</span>
+                      </div>
+                      <span className={clsx('font-bold', i === 0 ? 'text-orange-400' : 'text-white')}>
+                        {player.runs}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-dark-500 text-xs">No stats yet</p>
+              )}
+            </Link>
+
+            {/* Purple Cap Preview */}
+            <Link
+              to="/leaderboards"
+              className="glass-card p-4 hover:border-purple-500/30 transition-colors"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                    <Target className="w-4 h-4 text-purple-500" />
+                  </div>
+                  <span className="text-xs font-medium text-purple-400">Purple Cap</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-dark-500" />
+              </div>
+              {leaderboards.purple_cap.length > 0 ? (
+                <div className="space-y-2">
+                  {leaderboards.purple_cap.slice(0, 3).map((player, i) => (
+                    <div key={player.player_id} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className={clsx(
+                          'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold',
+                          i === 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                          i === 1 ? 'bg-gray-400/20 text-gray-400' :
+                          'bg-amber-600/20 text-amber-500'
+                        )}>{i + 1}</span>
+                        <span className="text-dark-300 truncate max-w-[80px]">{player.player_name}</span>
+                      </div>
+                      <span className={clsx('font-bold', i === 0 ? 'text-purple-400' : 'text-white')}>
+                        {player.wickets}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-dark-500 text-xs">No stats yet</p>
+              )}
+            </Link>
+          </motion.div>
+        )}
 
         {/* Top of table */}
         {standings && standings.length > 0 && (

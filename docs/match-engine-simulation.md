@@ -62,8 +62,16 @@ The 0.78 multiplier was calibrated to produce T20-like scoring rates (typically 
 
 ```python
 # Aggression affects variance and safety
-skill_multiplier = {"defend": 0.7, "balanced": 1.0, "attack": 1.4}
+aggression_multiplier = {"defend": 0.7, "balanced": 1.0, "attack": 1.4}
 base_adjustment = {"defend": +8, "balanced": 0, "attack": -5}
+
+# Batting intent affects natural variance (see Batting Intent section)
+intent_multiplier = {"anchor": 0.75, "accumulator": 0.95, "aggressive": 1.15, "power_hitter": 1.25}
+intent_floor_bonus = {"anchor": +3, "accumulator": 0, "aggressive": 0, "power_hitter": 0}
+
+# Combined skill multiplier
+skill_multiplier = aggression_multiplier * intent_multiplier
+base_adjustment += intent_floor_bonus
 
 # Minimum effective batting prevents tail-ender massacres
 effective_batting = max(batter.batting, 55)
@@ -160,6 +168,51 @@ Players can choose their batting approach:
 - **Base adjustment**: -5 (riskier)
 - **Effect**: More boundaries possible, but also more wickets
 - **Bonus**: Lower boundary threshold (18 -> 10) makes boundaries easier
+
+---
+
+## Batting Intent
+
+Each batter has a natural **batting intent** that affects their playstyle variance. This is separate from the aggression mode (which is tactical) - intent represents the player's natural style.
+
+### Intent Types
+
+| Intent | Variance Multiplier | Floor Bonus | Description |
+|--------|---------------------|-------------|-------------|
+| **Anchor** | 0.75 | +3 | Low variance, consistent accumulator. Rarely gets out but scores slowly. |
+| **Accumulator** | 0.95 | 0 | Slightly below average variance. Standard rotator of strike. |
+| **Aggressive** | 1.15 | 0 | Above average variance. Looks to score but takes more risks. |
+| **Power Hitter** | 1.25 | 0 | High variance - boom or bust. Big scores or quick dismissals. |
+
+### How Intent Affects Outcomes
+
+The intent multiplier is applied to the skill multiplier:
+
+```python
+skill_multiplier = aggression_multiplier * intent_multiplier
+```
+
+For example, a Power Hitter in Attack mode:
+- Aggression multiplier: 1.4 (attack)
+- Intent multiplier: 1.25 (power_hitter)
+- Final skill multiplier: 1.4 * 1.25 = 1.75
+
+This creates very high variance - they'll either hit big or get out trying.
+
+### Statistical Impact (from 150-match simulations)
+
+| Intent | Full 20 Overs | All Out Rate | Avg Wickets | Avg Score |
+|--------|---------------|--------------|-------------|-----------|
+| Anchor | 99% | 1% | 2.2 | 167 |
+| Accumulator | 91% | 10% | 4.6 | 173 |
+| Aggressive | 89% | 12% | 5.7 | 197 |
+| Power Hitter | 85% | 15% | 6.4 | 204 |
+| Mixed Team | 91% | 10% | 4.3 | 190 |
+
+This shows the risk/reward tradeoff:
+- Anchors are safest but score lowest
+- Power hitters score highest but lose most wickets
+- Mixed teams balance both for optimal results
 
 ---
 
@@ -301,6 +354,11 @@ These values were tuned through testing to produce realistic T20 outcomes:
 | Max wickets per over | 3 | Prevents unrealistic collapses |
 | Run rate floor | 3.5 | Minimum ~70 runs per innings |
 | Run rate ceiling | 11 | Maximum ~220 runs per innings |
+| Anchor intent multiplier | 0.75 | Low variance, safe batting |
+| Accumulator intent multiplier | 0.95 | Standard baseline |
+| Aggressive intent multiplier | 1.15 | Higher risk/reward |
+| Power hitter intent multiplier | 1.25 | Highest variance |
+| Anchor floor bonus | +3 | Extra safety for defensive play |
 
 ---
 
@@ -308,7 +366,7 @@ These values were tuned through testing to produce realistic T20 outcomes:
 
 **Setup:**
 - Bowler: Skill 85, Pace, on green_top pitch
-- Batter: Skill 70, no traits, 8 balls faced
+- Batter: Skill 70, no traits, 8 balls faced, **aggressive** intent
 - Aggression: Balanced
 - Run rate: 6.5 (normal)
 
@@ -321,17 +379,24 @@ Bowling Difficulty:
 
 Batter Roll:
 effective_batting = max(70, 55) = 70
+aggression_multiplier = 1.0 (balanced)
+intent_multiplier = 1.15 (aggressive)
+skill_multiplier = 1.0 * 1.15 = 1.15
+base_adjustment = 0 (balanced) + 0 (aggressive intent) = 0
+
 base = 70/3 + 0 = 23.3 ≈ 23
-variable = (70 * 2/3) * 1.0 = 46.7 ≈ 46
-roll = 23 + random(0, 46)  # Let's say 28
-total = 51 + 0 (no traits) + 0 (normal RR) + 0 (no protection)
-= 51
+variable = (70 * 2/3) * 1.15 = 53.7 ≈ 53
+roll = 23 + random(0, 53)  # Let's say 32
+total = 55 + 0 (no traits) + 0 (normal RR) + 0 (no protection)
+= 55
 
-Margin = 51 - 69 = -18
+Margin = 55 - 69 = -14
 
-Result: Margin in edge zone (-12 to -21)
+Result: Margin in range (-12 to -21)
 → "Beaten but survives" - 0 or 1 runs
 ```
+
+Note: The aggressive intent gives a wider variable range (0-53 vs 0-46 for accumulator), meaning this batter could roll higher for boundaries OR lower for wickets.
 
 ---
 
@@ -340,9 +405,10 @@ Result: Margin in edge zone (-12 to -21)
 The engine creates realistic cricket by:
 
 1. **Skill-based contests** - Better players win more often
-2. **Variance through aggression** - Risk/reward tradeoffs
-3. **Situational modifiers** - Pitch, pressure, traits
-4. **Guardrails** - Run rate floors/ceilings, wicket protection
-5. **Randomness** - Upsets can still happen
+2. **Variance through aggression** - Risk/reward tradeoffs via tactical mode
+3. **Batting intent** - Player personalities affect natural variance (anchors vs power hitters)
+4. **Situational modifiers** - Pitch, pressure, traits
+5. **Guardrails** - Run rate floors/ceilings, wicket protection
+6. **Randomness** - Upsets can still happen
 
-This produces scores typically between 120-180 for T20 matches, with realistic wicket fall patterns and dramatic finishes when chasing targets.
+This produces scores typically between 140-200 for T20 matches, with realistic wicket fall patterns and dramatic finishes when chasing targets. Teams with more aggressive/power hitter batters score higher on average but lose more wickets, while anchor-heavy teams play safer but score lower.

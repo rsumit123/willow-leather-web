@@ -11,6 +11,7 @@ import { StandingsPage } from './pages/Standings';
 import { FixturesPage } from './pages/Fixtures';
 import { MatchPage } from './pages/Match';
 import { PlayingXIPage } from './pages/PlayingXI';
+import { LeaderboardsPage } from './pages/Leaderboards';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +40,7 @@ function App() {
               <Route path="/fixtures" element={<FixturesPage />} />
               <Route path="/match/:fixtureId" element={<MatchPage />} />
               <Route path="/playing-xi" element={<PlayingXIPage />} />
+              <Route path="/leaderboards" element={<LeaderboardsPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

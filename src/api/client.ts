@@ -463,6 +463,70 @@ export interface MatchCompletionResponse {
   man_of_the_match: ManOfTheMatch;
 }
 
+// Leaderboard types
+export interface BatterLeaderboardEntry {
+  rank: number;
+  player_id: number;
+  player_name: string;
+  team_id: number;
+  team_short_name: string;
+  runs: number;
+  matches: number;
+  innings: number;
+  not_outs: number;
+  average: number;
+  strike_rate: number;
+  fours: number;
+  sixes: number;
+  highest_score: number;
+}
+
+export interface BowlerLeaderboardEntry {
+  rank: number;
+  player_id: number;
+  player_name: string;
+  team_id: number;
+  team_short_name: string;
+  wickets: number;
+  matches: number;
+  overs: number;
+  runs_conceded: number;
+  economy: number;
+  average: number;
+  best_bowling: string;
+}
+
+export interface SixesLeaderboardEntry {
+  rank: number;
+  player_id: number;
+  player_name: string;
+  team_id: number;
+  team_short_name: string;
+  sixes: number;
+  runs: number;
+  matches: number;
+}
+
+export interface CatchesLeaderboardEntry {
+  rank: number;
+  player_id: number;
+  player_name: string;
+  team_id: number;
+  team_short_name: string;
+  catches: number;
+  stumpings: number;
+  run_outs: number;
+  total_dismissals: number;
+  matches: number;
+}
+
+export interface LeaderboardsResponse {
+  orange_cap: BatterLeaderboardEntry[];
+  purple_cap: BowlerLeaderboardEntry[];
+  most_sixes: SixesLeaderboardEntry[];
+  most_catches: CatchesLeaderboardEntry[];
+}
+
 // API functions
 export const careerApi = {
   getTeamChoices: () => api.get<TeamChoice[]>('/career/teams/choices'),
@@ -530,6 +594,8 @@ export const seasonApi = {
     api.get<PlayoffBracket>(`/season/${careerId}/playoffs/bracket`),
   generateNextPlayoff: (careerId: number) =>
     api.post<SeasonSummary>(`/season/${careerId}/playoffs/generate-next`),
+  getLeaderboards: (careerId: number) =>
+    api.get<LeaderboardsResponse>(`/season/${careerId}/leaderboards`),
 };
 
 export const matchApi = {
