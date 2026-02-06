@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Globe, Star, Zap, Target, AlertTriangle, Hammer, Hand, Shield } from 'lucide-react';
-import type { Player } from '../../api/client';
+import { X, Globe, Star, Zap, Target, AlertTriangle, Hammer, Hand, Shield, ChevronDown } from 'lucide-react';
+import type { Player, BatterDNA, BowlerDNA } from '../../api/client';
 import { IntentBadge } from './IntentBadge';
 import clsx from 'clsx';
 
@@ -57,6 +58,111 @@ const INTENT_DESCRIPTIONS: Record<string, string> = {
   aggressive: 'Looks for scoring opportunities while managing risk',
   power_hitter: 'Goes for big shots, higher risk and higher reward',
 };
+
+function DNABar({ label, value, isWeakness }: { label: string; value: number; isWeakness: boolean }) {
+  const color = isWeakness ? 'text-red-400' : value >= 70 ? 'text-pitch-400' : 'text-dark-300';
+  const barColor = isWeakness ? 'bg-red-400' : value >= 70 ? 'bg-pitch-400' : value >= 40 ? 'bg-amber-400' : 'bg-red-400';
+  return (
+    <div className="flex items-center gap-2">
+      <span className={clsx('text-xs w-24 text-right', isWeakness ? 'text-red-400 font-semibold' : 'text-dark-400')}>
+        {label}
+      </span>
+      <div className="flex-1 h-1.5 bg-dark-700 rounded-full overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${value}%` }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className={clsx('h-full rounded-full', barColor)}
+        />
+      </div>
+      <div className="flex items-center gap-0.5 w-10">
+        <span className={clsx('text-xs font-semibold', color)}>{value}</span>
+        {isWeakness && <AlertTriangle className="w-3 h-3 text-red-400" />}
+      </div>
+    </div>
+  );
+}
+
+function DNASection({ batterDna, bowlerDna }: { batterDna?: BatterDNA; bowlerDna?: BowlerDNA }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  if (!batterDna && !bowlerDna) return null;
+
+  const weaknesses = batterDna?.weaknesses || [];
+
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center justify-between w-full group"
+      >
+        <h3 className="text-xs font-semibold text-dark-400 uppercase tracking-wider">
+          DNA Profile
+        </h3>
+        <ChevronDown
+          className={clsx(
+            'w-4 h-4 text-dark-500 transition-transform',
+            isExpanded && 'rotate-180'
+          )}
+        />
+      </button>
+
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="space-y-4 pt-1">
+              {batterDna && (
+                <div className="space-y-2">
+                  <span className="text-[10px] text-dark-500 font-bold uppercase tracking-widest">
+                    Batting DNA
+                  </span>
+                  <div className="space-y-1.5">
+                    <DNABar label="vs Pace" value={batterDna.vs_pace} isWeakness={weaknesses.includes('vs_pace')} />
+                    <DNABar label="vs Bounce" value={batterDna.vs_bounce} isWeakness={weaknesses.includes('vs_bounce')} />
+                    <DNABar label="vs Spin" value={batterDna.vs_spin} isWeakness={weaknesses.includes('vs_spin')} />
+                    <DNABar label="vs Deception" value={batterDna.vs_deception} isWeakness={weaknesses.includes('vs_deception')} />
+                    <DNABar label="Off Side" value={batterDna.off_side} isWeakness={weaknesses.includes('off_side')} />
+                    <DNABar label="Leg Side" value={batterDna.leg_side} isWeakness={weaknesses.includes('leg_side')} />
+                    <DNABar label="Power" value={batterDna.power} isWeakness={weaknesses.includes('power')} />
+                  </div>
+                </div>
+              )}
+
+              {bowlerDna && (
+                <div className="space-y-2">
+                  <span className="text-[10px] text-dark-500 font-bold uppercase tracking-widest">
+                    Bowling DNA ({bowlerDna.type === 'pacer' ? 'Pace' : 'Spin'})
+                  </span>
+                  <div className="space-y-1.5">
+                    {bowlerDna.type === 'pacer' ? (
+                      <>
+                        {bowlerDna.speed != null && <DNABar label="Speed" value={Math.min(100, Math.max(0, ((bowlerDna.speed - 115) / 40) * 100))} isWeakness={false} />}
+                        {bowlerDna.swing != null && <DNABar label="Swing" value={bowlerDna.swing} isWeakness={false} />}
+                        {bowlerDna.bounce != null && <DNABar label="Bounce" value={bowlerDna.bounce} isWeakness={false} />}
+                      </>
+                    ) : (
+                      <>
+                        {bowlerDna.turn != null && <DNABar label="Turn" value={bowlerDna.turn} isWeakness={false} />}
+                        {bowlerDna.flight != null && <DNABar label="Flight" value={bowlerDna.flight} isWeakness={false} />}
+                        {bowlerDna.variation != null && <DNABar label="Variation" value={bowlerDna.variation} isWeakness={false} />}
+                      </>
+                    )}
+                    {bowlerDna.control != null && <DNABar label="Control" value={bowlerDna.control} isWeakness={false} />}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 interface PlayerDetailModalProps {
   player: Player | null;
@@ -201,6 +307,9 @@ export function PlayerDetailModal({ player, isOpen, onClose }: PlayerDetailModal
                   />
                 </div>
               </div>
+
+              {/* DNA Profile (collapsible) */}
+              <DNASection batterDna={player.batting_dna} bowlerDna={player.bowling_dna} />
 
               {/* Traits */}
               {traits.length > 0 && (

@@ -6,9 +6,10 @@ import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { ScoreHeader } from '../components/match/ScoreHeader';
 import { BallDisplay } from '../components/match/BallDisplay';
-import { BattingSection } from '../components/match/BattingSection';
-import { BowlingSection } from '../components/match/BowlingSection';
+import { MatchupPanel } from '../components/match/MatchupPanel';
 import { ThisOver } from '../components/match/ThisOver';
+import { ScoutPopup } from '../components/match/ScoutPopup';
+import { PitchReveal } from '../components/match/PitchReveal';
 import { TacticsPanel } from '../components/match/TacticsPanel';
 import { TossScreen } from '../components/match/TossScreen';
 import { BowlerSelection } from '../components/match/BowlerSelection';
@@ -33,6 +34,9 @@ export function MatchPage() {
   const [inningsChangeInfo, setInningsChangeInfo] = useState<{ target: number; battingTeam: string } | null>(null);
   const [showBowlerSelect, setShowBowlerSelect] = useState(false);
   const [showScorecard, setShowScorecard] = useState(false);
+  const [selectedDelivery, setSelectedDelivery] = useState<string | null>(null);
+  const [scoutPlayerId, setScoutPlayerId] = useState<number | null>(null);
+  const [showPitchReveal, setShowPitchReveal] = useState(false);
 
   // Milestone alert state
   const [milestone, setMilestone] = useState<{
@@ -96,18 +100,21 @@ export function MatchPage() {
       matchApi.startMatch(careerId!, fid, tossWinnerId, electedTo),
     onSuccess: () => {
       setShowToss(false);
+      setShowPitchReveal(true);
       queryClient.invalidateQueries({ queryKey: ['match-state'] });
     },
   });
 
   // Play ball mutation
   const playBallMutation = useMutation({
-    mutationFn: (agg: string) => matchApi.playBall(careerId!, fid, agg),
+    mutationFn: ({ agg, delivery }: { agg: string; delivery?: string }) =>
+      matchApi.playBall(careerId!, fid, agg, delivery || undefined),
     onSuccess: (response) => {
       const ballResult = response.data;
       const newState = ballResult.match_state;
 
       setLastBall(ballResult);
+      setSelectedDelivery(null); // Reset delivery selection after each ball
       queryClient.setQueryData(['match-state', careerId, fid], newState);
 
       // Check for milestones (only if innings didn't just change)
@@ -376,7 +383,7 @@ export function MatchPage() {
   }
 
   const handlePlayBall = () => {
-    playBallMutation.mutate(aggression);
+    playBallMutation.mutate({ agg: aggression, delivery: selectedDelivery || undefined });
   };
 
   if (state.status === 'completed') {
@@ -449,6 +456,29 @@ export function MatchPage() {
         />
       )}
 
+      {/* Pitch Reveal */}
+      <PitchReveal
+        isOpen={showPitchReveal}
+        onClose={() => setShowPitchReveal(false)}
+        pitchInfo={state.pitch_info}
+      />
+
+      {/* Scout Popup */}
+      <ScoutPopup
+        isOpen={scoutPlayerId !== null}
+        onClose={() => setScoutPlayerId(null)}
+        playerName={
+          scoutPlayerId === state.striker?.id
+            ? state.striker?.name || ''
+            : state.non_striker?.name || ''
+        }
+        batterDna={
+          scoutPlayerId === state.striker?.id
+            ? state.striker?.batting_dna
+            : state.non_striker?.batting_dna
+        }
+      />
+
       <div className="min-h-screen bg-dark-950 flex flex-col pb-[200px]">
         <ScoreHeader
           state={state}
@@ -461,15 +491,18 @@ export function MatchPage() {
           <BallDisplay
             outcome={lastBall?.outcome}
             commentary={lastBall?.commentary || state.last_ball_commentary}
+            deliveryName={lastBall?.delivery_name || state.last_delivery_name}
+            contactQuality={lastBall?.contact_quality}
           />
 
-          <BattingSection
+          <MatchupPanel
             striker={state.striker}
             nonStriker={state.non_striker}
+            bowler={state.bowler}
             partnershipRuns={state.partnership_runs}
+            isUserBatting={state.is_user_batting}
+            onScoutBatter={!state.is_user_batting ? setScoutPlayerId : undefined}
           />
-
-          <BowlingSection bowler={state.bowler} />
 
           <ThisOver outcomes={state.this_over} />
         </div>
@@ -482,6 +515,10 @@ export function MatchPage() {
           onSimulateInnings={() => simulateInningsMutation.mutate()}
           isLoading={playBallMutation.isPending || simulateOverMutation.isPending || simulateInningsMutation.isPending}
           disabled={showBowlerSelect || showInningsChange || (state?.can_change_bowler && !state?.bowler)}
+          isUserBatting={state.is_user_batting}
+          availableDeliveries={state.available_deliveries}
+          selectedDelivery={selectedDelivery}
+          onSelectDelivery={setSelectedDelivery}
         />
 
         {/* Scorecard Drawer */}

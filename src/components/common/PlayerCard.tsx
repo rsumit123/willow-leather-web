@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { User, Star, Globe } from 'lucide-react';
-import type { Player, PlayerBrief } from '../../api/client';
+import type { Player, PlayerBrief, BatterDNA, BowlerDNA } from '../../api/client';
 import { TraitBadges } from './TraitBadge';
 import { IntentBadge } from './IntentBadge';
 import clsx from 'clsx';
@@ -26,6 +26,38 @@ const roleLabels: Record<string, string> = {
   all_rounder: 'AR',
   wicket_keeper: 'WK',
 };
+
+function getDotColor(value: number) {
+  if (value >= 70) return 'bg-pitch-400';
+  if (value >= 40) return 'bg-amber-400';
+  return 'bg-red-400';
+}
+
+function DNAMicroDots({ batterDna, bowlerDna }: { batterDna: BatterDNA; bowlerDna?: BowlerDNA }) {
+  const dots: { label: string; value: number }[] = [
+    { label: 'Pace', value: batterDna.vs_pace },
+    { label: 'Spin', value: batterDna.vs_spin },
+    { label: 'Pwr', value: batterDna.power },
+  ];
+
+  if (bowlerDna) {
+    const primaryStat = bowlerDna.type === 'pacer'
+      ? { label: 'Ctrl', value: bowlerDna.control ?? 50 }
+      : { label: 'Ctrl', value: bowlerDna.control ?? 50 };
+    dots.push(primaryStat);
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-3 mt-2">
+      {dots.map((d) => (
+        <div key={d.label} className="flex items-center gap-1">
+          <div className={clsx('w-1.5 h-1.5 rounded-full', getDotColor(d.value))} />
+          <span className="text-[9px] text-dark-500">{d.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function PlayerCard({
   player,
@@ -146,6 +178,10 @@ export function PlayerCard({
               <p className="font-semibold text-sm">{'age' in player && player.age}</p>
             </div>
           </div>
+          {/* DNA micro-dots */}
+          {'batting_dna' in player && player.batting_dna && (
+            <DNAMicroDots batterDna={player.batting_dna as BatterDNA} bowlerDna={'bowling_dna' in player ? player.bowling_dna as BowlerDNA | undefined : undefined} />
+          )}
         </div>
       )}
     </motion.div>

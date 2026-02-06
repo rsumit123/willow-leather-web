@@ -201,6 +201,8 @@ export interface Player {
   power: number;  // Six-hitting ability (1-100)
   traits: string[];  // Player traits like "clutch", "finisher"
   batting_intent: string;  // anchor, accumulator, aggressive, power_hitter
+  batting_dna?: BatterDNA;
+  bowling_dna?: BowlerDNA;
 }
 
 export interface PlayerBrief {
@@ -382,6 +384,45 @@ export interface PlayingXIValidationResponse {
   breakdown: Record<string, number>;
 }
 
+export interface BatterDNA {
+  vs_pace: number;
+  vs_bounce: number;
+  vs_spin: number;
+  vs_deception: number;
+  off_side: number;
+  leg_side: number;
+  power: number;
+  weaknesses: string[];
+}
+
+export interface BowlerDNA {
+  type: 'pacer' | 'spinner';
+  speed?: number;
+  swing?: number;
+  bounce?: number;
+  turn?: number;
+  flight?: number;
+  variation?: number;
+  control?: number;
+}
+
+export interface DeliveryOption {
+  name: string;
+  display_name: string;
+  description: string;
+  exec_difficulty: number;
+  targets_weakness?: string;
+}
+
+export interface PitchInfo {
+  name: string;
+  display_name: string;
+  pace_assist: number;
+  spin_assist: number;
+  bounce: number;
+  deterioration: number;
+}
+
 export interface PlayerStateBrief {
   id: number;
   name: string;
@@ -393,6 +434,7 @@ export interface PlayerStateBrief {
   is_settled: boolean;
   is_on_fire: boolean;
   traits?: string[];
+  batting_dna?: BatterDNA;
 }
 
 export interface BowlerStateBrief {
@@ -405,6 +447,7 @@ export interface BowlerStateBrief {
   is_tired: boolean;
   has_confidence: boolean;
   traits?: string[];
+  bowling_dna?: BowlerDNA;
 }
 
 export interface MatchState {
@@ -434,6 +477,9 @@ export interface MatchState {
   user_team_name: string;
   innings_just_changed: boolean;
   can_change_bowler: boolean;
+  pitch_info?: PitchInfo;
+  available_deliveries?: DeliveryOption[];
+  last_delivery_name?: string;
 }
 
 export interface AvailableBowler {
@@ -448,6 +494,8 @@ export interface AvailableBowler {
   can_bowl: boolean;
   reason?: string;
   traits?: string[];
+  bowling_dna?: BowlerDNA;
+  repertoire?: string[];
 }
 
 export interface AvailableBowlersResponse {
@@ -495,6 +543,8 @@ export interface BallResult {
   is_six: boolean;
   commentary: string;
   match_state: MatchState;
+  delivery_name?: string;
+  contact_quality?: string;
 }
 
 // Scorecard types
@@ -726,8 +776,11 @@ export const matchApi = {
   },
   getState: (careerId: number, fixtureId: number) =>
     api.get<MatchState>(`/match/${careerId}/match/${fixtureId}/state`),
-  playBall: (careerId: number, fixtureId: number, aggression: string) =>
-    api.post<BallResult>(`/match/${careerId}/match/${fixtureId}/ball`, { aggression }),
+  playBall: (careerId: number, fixtureId: number, aggression: string, deliveryType?: string) =>
+    api.post<BallResult>(`/match/${careerId}/match/${fixtureId}/ball`, {
+      aggression,
+      ...(deliveryType ? { delivery_type: deliveryType } : {}),
+    }),
   simulateOver: (careerId: number, fixtureId: number, aggression: string = 'balanced') =>
     api.post<MatchState>(`/match/${careerId}/match/${fixtureId}/simulate-over`, { aggression }),
   simulateInnings: (careerId: number, fixtureId: number) =>
@@ -740,4 +793,8 @@ export const matchApi = {
     api.get<LiveScorecardResponse>(`/match/${careerId}/match/${fixtureId}/scorecard`),
   getMatchResult: (careerId: number, fixtureId: number) =>
     api.get<MatchCompletionResponse>(`/match/${careerId}/match/${fixtureId}/result`),
+  scoutPlayer: (careerId: number, fixtureId: number, playerId: number) =>
+    api.get<{ player_id: number; name: string; role: string; batting: number; batting_dna?: BatterDNA }>(
+      `/match/${careerId}/match/${fixtureId}/scout/${playerId}`
+    ),
 };

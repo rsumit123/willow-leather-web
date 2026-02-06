@@ -3,6 +3,15 @@ import { ClipboardList } from 'lucide-react';
 import type { MatchState } from '../../api/client';
 import clsx from 'clsx';
 
+const pitchBadgeColors: Record<string, string> = {
+  green_seamer: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400',
+  dust_bowl: 'bg-amber-500/15 border-amber-500/30 text-amber-400',
+  flat_deck: 'bg-gray-500/15 border-gray-500/30 text-gray-400',
+  bouncy_track: 'bg-orange-500/15 border-orange-500/30 text-orange-400',
+  slow_turner: 'bg-purple-500/15 border-purple-500/30 text-purple-400',
+  balanced: 'bg-blue-500/15 border-blue-500/30 text-blue-400',
+};
+
 interface ScoreHeaderProps {
   state: MatchState;
   team1Name: string;
@@ -39,7 +48,7 @@ export function ScoreHeader({ state, team1Name, team2Name, onScorecardClick }: S
         {/* Main score area */}
         <div className="px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-baseline gap-2">
+            <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-white uppercase tracking-wide">
                 {teamCode}
               </span>
@@ -54,6 +63,14 @@ export function ScoreHeader({ state, team1Name, team2Name, onScorecardClick }: S
               <span className="text-sm text-dark-400">
                 ({state.overs})
               </span>
+              {state.pitch_info && (
+                <span className={clsx(
+                  'text-[9px] px-1.5 py-0.5 rounded-md border font-medium',
+                  pitchBadgeColors[state.pitch_info.name] || 'bg-dark-700/50 border-dark-600/30 text-dark-300'
+                )}>
+                  {state.pitch_info.display_name}
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-3 text-right">
