@@ -28,7 +28,7 @@ import {
   Ban,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { auctionApi, careerApi, type Player, type SkipCategoryPlayerResult } from '../api/client';
+import { auctionApi, careerApi, type Player, type SkipCategoryPlayerResult, type BatterDNA, type BowlerDNA } from '../api/client';
 import { PlayerListDrawer } from '../components/auction/PlayerListDrawer';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
@@ -36,6 +36,85 @@ import { PageHeader } from '../components/common/PageHeader';
 import { TraitBadges } from '../components/common/TraitBadge';
 import { IntentBadge } from '../components/common/IntentBadge';
 import clsx from 'clsx';
+
+function getDnaBarColor(value: number, isWeakness: boolean) {
+  if (isWeakness) return 'bg-red-400';
+  if (value >= 70) return 'bg-pitch-400';
+  if (value >= 40) return 'bg-amber-400';
+  return 'bg-red-400';
+}
+
+function AuctionDNASection({ batterDna, bowlerDna }: { batterDna?: BatterDNA; bowlerDna?: BowlerDNA }) {
+  if (!batterDna && !bowlerDna) return null;
+  const weaknesses = batterDna?.weaknesses || [];
+
+  const batterStats = batterDna ? [
+    { label: 'vs Pace', value: batterDna.vs_pace, key: 'vs_pace' },
+    { label: 'vs Spin', value: batterDna.vs_spin, key: 'vs_spin' },
+    { label: 'vs Bounce', value: batterDna.vs_bounce, key: 'vs_bounce' },
+    { label: 'Power', value: batterDna.power, key: 'power' },
+  ] : [];
+
+  const bowlerType = bowlerDna?.type === 'pacer' ? 'Pace' : 'Spin';
+  const bowlerStats = bowlerDna ? (
+    bowlerDna.type === 'pacer'
+      ? [
+          ...(bowlerDna.speed != null ? [{ label: 'Speed', value: Math.min(100, Math.max(0, Math.round(((bowlerDna.speed - 120) / 35) * 100))) }] : []),
+          ...(bowlerDna.swing != null ? [{ label: 'Swing', value: bowlerDna.swing }] : []),
+          ...(bowlerDna.bounce != null ? [{ label: 'Bounce', value: bowlerDna.bounce }] : []),
+        ]
+      : [
+          ...(bowlerDna.turn != null ? [{ label: 'Turn', value: bowlerDna.turn }] : []),
+          ...(bowlerDna.flight != null ? [{ label: 'Flight', value: bowlerDna.flight }] : []),
+          ...(bowlerDna.variation != null ? [{ label: 'Variation', value: bowlerDna.variation }] : []),
+        ]
+  ) : [];
+  if (bowlerDna?.control != null) bowlerStats.push({ label: 'Control', value: bowlerDna.control });
+
+  return (
+    <motion.div
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: 'auto', opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="overflow-hidden"
+    >
+      <div className="pt-3 mt-3 border-t border-dark-700/50 space-y-3 text-left">
+        {batterStats.length > 0 && (
+          <div className="space-y-1.5">
+            <span className="text-[9px] text-dark-500 font-bold uppercase tracking-widest">Batting DNA</span>
+            {batterStats.map((s) => {
+              const isWeak = weaknesses.includes(s.key);
+              return (
+                <div key={s.key} className="flex items-center gap-2">
+                  <span className={clsx('text-[10px] w-16 text-right', isWeak ? 'text-red-400 font-semibold' : 'text-dark-400')}>{s.label}</span>
+                  <div className="flex-1 h-1 bg-dark-700 rounded-full overflow-hidden">
+                    <div className={clsx('h-full rounded-full', getDnaBarColor(s.value, isWeak))} style={{ width: `${s.value}%` }} />
+                  </div>
+                  <span className={clsx('text-[10px] w-6 font-semibold', isWeak ? 'text-red-400' : s.value >= 70 ? 'text-pitch-400' : 'text-dark-300')}>{s.value}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {bowlerStats.length > 0 && (
+          <div className="space-y-1.5">
+            <span className="text-[9px] text-dark-500 font-bold uppercase tracking-widest">Bowling DNA ({bowlerType})</span>
+            {bowlerStats.map((s) => (
+              <div key={s.label} className="flex items-center gap-2">
+                <span className="text-[10px] w-16 text-right text-dark-400">{s.label}</span>
+                <div className="flex-1 h-1 bg-dark-700 rounded-full overflow-hidden">
+                  <div className={clsx('h-full rounded-full', getDnaBarColor(s.value, false))} style={{ width: `${s.value}%` }} />
+                </div>
+                <span className={clsx('text-[10px] w-6 font-semibold', s.value >= 70 ? 'text-pitch-400' : 'text-dark-300')}>{s.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
 
 // Auction states
 type AuctionPhase = 'user_turn' | 'ai_simulation' | 'cap_exceeded' | 'auction_end';
@@ -65,6 +144,7 @@ export function AuctionPage() {
   const [capExceededReason, setCapExceededReason] = useState<'manual_cap' | 'budget_reserve'>('manual_cap');
   const [showPlayerList, setShowPlayerList] = useState(false);
   const [skipResults, setSkipResults] = useState<SkipCategoryPlayerResult[] | null>(null);
+  const [showDna, setShowDna] = useState(false);
 
 
   // Fetch auction state
@@ -315,10 +395,11 @@ export function AuctionPage() {
     }
   }, [selectedTeamId, careerId]);
 
-  // Reset phase when player changes
+  // Reset phase and DNA view when player changes
   useEffect(() => {
     if (state?.current_player) {
       setPhase('user_turn');
+      setShowDna(false);
     }
   }, [state?.current_player?.id]);
 
@@ -761,6 +842,19 @@ export function AuctionPage() {
                         {state.current_player.overall_rating}
                       </span>
                     </div>
+                    {(state.current_player.batting_dna || state.current_player.bowling_dna) && (
+                      <button
+                        onClick={() => setShowDna(!showDna)}
+                        className={clsx(
+                          'text-[10px] px-2 py-0.5 rounded border font-medium transition-colors',
+                          showDna
+                            ? 'bg-pitch-500/20 text-pitch-400 border-pitch-500/30'
+                            : 'bg-dark-700/50 text-dark-400 border-dark-600/50 hover:text-dark-300'
+                        )}
+                      >
+                        DNA
+                      </button>
+                    )}
                   </div>
 
                   {/* Quick Stats Row */}
@@ -808,6 +902,16 @@ export function AuctionPage() {
                       <TraitBadges traits={state.current_player.traits} maxShow={3} clickable />
                     )}
                   </div>
+
+                  {/* Collapsible DNA Section */}
+                  <AnimatePresence>
+                    {showDna && (
+                      <AuctionDNASection
+                        batterDna={state.current_player.batting_dna}
+                        bowlerDna={state.current_player.bowling_dna}
+                      />
+                    )}
+                  </AnimatePresence>
 
                   <p className="text-sm text-dark-400">
                     Base: {formatPrice(state.current_player.base_price)}

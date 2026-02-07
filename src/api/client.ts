@@ -219,6 +219,8 @@ export interface PlayerBrief {
   power: number;  // Power for batters
   traits: string[];  // Player traits
   batting_intent: string;  // Batting intent
+  batting_dna?: BatterDNA;
+  bowling_dna?: BowlerDNA;
 }
 
 export interface Career {

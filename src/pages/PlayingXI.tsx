@@ -23,6 +23,7 @@ import { PageHeader } from '../components/common/PageHeader';
 import { TraitBadges } from '../components/common/TraitBadge';
 import { IntentBadge } from '../components/common/IntentBadge';
 import { PlayerDetailModal } from '../components/common/PlayerDetailModal';
+import type { BatterDNA, BowlerDNA } from '../api/client';
 import clsx from 'clsx';
 import {
   DndContext,
@@ -64,6 +65,53 @@ const ROLE_SHORT: Record<string, string> = {
   all_rounder: 'AR',
   bowler: 'BWL',
 };
+
+function getDnaColor(value: number) {
+  if (value >= 70) return 'text-pitch-400';
+  if (value >= 40) return 'text-dark-300';
+  return 'text-red-400';
+}
+
+function DNASummary({ batterDna, bowlerDna, role }: { batterDna?: BatterDNA; bowlerDna?: BowlerDNA; role: string }) {
+  if (!batterDna && !bowlerDna) return null;
+
+  const items: { label: string; value: number }[] = [];
+
+  if (role === 'bowler' && bowlerDna) {
+    items.push({ label: 'Ctrl', value: bowlerDna.control ?? 0 });
+    if (bowlerDna.type === 'pacer') {
+      if (bowlerDna.speed != null) items.push({ label: 'Spd', value: Math.min(100, Math.max(0, Math.round(((bowlerDna.speed - 120) / 35) * 100))) });
+      if (bowlerDna.swing != null) items.push({ label: 'Swg', value: bowlerDna.swing });
+    } else {
+      if (bowlerDna.turn != null) items.push({ label: 'Trn', value: bowlerDna.turn });
+      if (bowlerDna.flight != null) items.push({ label: 'Flt', value: bowlerDna.flight });
+    }
+  } else if (batterDna) {
+    items.push(
+      { label: 'Pace', value: batterDna.vs_pace },
+      { label: 'Spin', value: batterDna.vs_spin },
+      { label: 'Pwr', value: batterDna.power },
+    );
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-1.5 mt-0.5">
+      {bowlerDna && role === 'bowler' && (
+        <span className="text-[9px] text-dark-500 font-medium">
+          [{bowlerDna.type === 'pacer' ? 'Pace' : 'Spin'}]
+        </span>
+      )}
+      {items.map((item) => (
+        <span key={item.label} className="text-[9px]">
+          <span className="text-dark-500">{item.label}:</span>
+          <span className={getDnaColor(item.value)}>{item.value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 // Sortable batting order item
 function SortableBattingItem({
@@ -150,6 +198,7 @@ function SortableBattingItem({
               <TraitBadges traits={player.traits} maxShow={2} compact />
             )}
           </div>
+          <DNASummary batterDna={player.batting_dna} bowlerDna={player.bowling_dna} role={player.role} />
         </button>
 
         {/* Stats */}
