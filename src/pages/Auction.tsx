@@ -26,6 +26,7 @@ import {
   Info,
   RotateCcw,
   Ban,
+  AlertTriangle,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { auctionApi, careerApi, type Player, type SkipCategoryPlayerResult, type BatterDNA, type BowlerDNA } from '../api/client';
@@ -116,6 +117,14 @@ function AuctionDNASection({ batterDna, bowlerDna }: { batterDna?: BatterDNA; bo
   );
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  marquee: 'Marquee',
+  batsmen: 'Batsmen',
+  bowlers: 'Bowlers',
+  all_rounders: 'All-Rounders',
+  wicket_keepers: 'Wicket-Keepers',
+};
+
 // Auction states
 type AuctionPhase = 'user_turn' | 'ai_simulation' | 'cap_exceeded' | 'auction_end';
 
@@ -145,6 +154,8 @@ export function AuctionPage() {
   const [showPlayerList, setShowPlayerList] = useState(false);
   const [skipResults, setSkipResults] = useState<SkipCategoryPlayerResult[] | null>(null);
   const [showDna, setShowDna] = useState(false);
+  const [showSkipConfirm, setShowSkipConfirm] = useState<string | null>(null);
+  const [streakMode, setStreakMode] = useState(false);
 
 
   // Fetch auction state
@@ -234,17 +245,31 @@ export function AuctionPage() {
     mutationFn: () => auctionApi.quickPass(careerId!),
     onSuccess: (response) => {
       const result = response.data;
-      setLastResult({
-        player: result.player_name,
-        sold: result.is_sold,
-        team: result.sold_to_team_name || undefined,
-        price: result.sold_price,
-      });
-      setPhase('auction_end');
-      setAutoBidEnabled(false);
-      queryClient.invalidateQueries({ queryKey: ['auction-state'] });
-      queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
-      queryClient.invalidateQueries({ queryKey: ['remaining-players'] });
+      if (streakMode) {
+        // Streak mode: show toast and auto-advance
+        const msg = result.is_sold
+          ? `${result.player_name} → ${result.sold_to_team_name} ${formatPrice(result.sold_price)}`
+          : `${result.player_name} → Unsold`;
+        showToast(msg, result.is_sold ? 'info' : 'error');
+        setAutoBidEnabled(false);
+        queryClient.invalidateQueries({ queryKey: ['auction-state'] });
+        queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
+        queryClient.invalidateQueries({ queryKey: ['remaining-players'] });
+        // Auto-advance to next player
+        nextPlayerMutation.mutate();
+      } else {
+        setLastResult({
+          player: result.player_name,
+          sold: result.is_sold,
+          team: result.sold_to_team_name || undefined,
+          price: result.sold_price,
+        });
+        setPhase('auction_end');
+        setAutoBidEnabled(false);
+        queryClient.invalidateQueries({ queryKey: ['auction-state'] });
+        queryClient.invalidateQueries({ queryKey: ['auction-teams'] });
+        queryClient.invalidateQueries({ queryKey: ['remaining-players'] });
+      }
     },
     onError: (error: any) => {
       const message = error.response?.data?.detail || 'Failed to quick pass';
@@ -743,7 +768,7 @@ export function AuctionPage() {
       <div className="min-h-screen bg-dark-950 flex flex-col">
         {/* Header */}
         <header className="sticky top-14 z-30 bg-dark-950/90 backdrop-blur-lg border-b border-dark-800">
-          <div className="max-w-lg mx-auto px-4 py-3">
+          <div className="max-w-lg mx-auto px-4 py-3 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <button
@@ -753,9 +778,25 @@ export function AuctionPage() {
                   <List className="w-4 h-4 text-pitch-400" />
                   <span className="text-xs text-dark-300">Players</span>
                 </button>
-                <p className="text-xs text-dark-400">
-                  {state?.players_sold || 0} sold • {state?.players_unsold || 0} unsold
-                </p>
+                {/* S4: Category progress label */}
+                {(() => {
+                  const currentCat = remainingPlayers?.current_category;
+                  const remaining = currentCat ? (remainingPlayers?.counts[currentCat] || 0) : 0;
+                  const soldInCat = currentCat ? (remainingPlayers?.sold_counts[currentCat] || 0) : 0;
+                  const total = remaining + soldInCat;
+                  const position = soldInCat + 1;
+                  return currentCat && total > 0 ? (
+                    <p className="text-xs text-dark-400">
+                      <span className="text-dark-300 font-medium">{position}/{total}</span>
+                      {' '}{CATEGORY_LABELS[currentCat] || currentCat}
+                      {' '}<span className="text-dark-500">•</span> {state?.players_sold || 0} sold
+                    </p>
+                  ) : (
+                    <p className="text-xs text-dark-400">
+                      {state?.players_sold || 0} sold • {state?.players_unsold || 0} unsold
+                    </p>
+                  );
+                })()}
               </div>
 
               {userTeamState && (
@@ -772,6 +813,23 @@ export function AuctionPage() {
                 </div>
               )}
             </div>
+
+            {/* S1: Skip remaining category link */}
+            {(() => {
+              const currentCat = remainingPlayers?.current_category;
+              const remaining = currentCat ? (remainingPlayers?.counts[currentCat] || 0) : 0;
+              return currentCat && remaining > 1 && state?.status === 'in_progress' ? (
+                <button
+                  onClick={() => setShowSkipConfirm(currentCat)}
+                  disabled={skipCategoryMutation.isPending}
+                  className="flex items-center gap-1.5 text-xs text-dark-400 hover:text-amber-400 transition-colors"
+                >
+                  <SkipForward className="w-3 h-3" />
+                  <span>Skip remaining {remaining} {CATEGORY_LABELS[currentCat] || currentCat}</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              ) : null;
+            })()}
           </div>
         </header>
 
@@ -1030,11 +1088,11 @@ export function AuctionPage() {
 
                         <button
                           onClick={() => quickPassMutation.mutate()}
-                          disabled={quickPassMutation.isPending || isManualBidding}
+                          disabled={quickPassMutation.isPending || isManualBidding || nextPlayerMutation.isPending}
                           className="btn-secondary flex items-center justify-center gap-2"
                         >
                           <SkipForward className="w-5 h-5" />
-                          {quickPassMutation.isPending ? 'AI Bidding...' : 'Pass'}
+                          {quickPassMutation.isPending ? 'AI Bidding...' : nextPlayerMutation.isPending ? 'Loading...' : 'Pass'}
                         </button>
                       </div>
 
@@ -1071,6 +1129,25 @@ export function AuctionPage() {
                           </div>
                         </div>
                       )}
+
+                      {/* S5: Quick Mode toggle */}
+                      <div className="flex items-center justify-center gap-2 pt-1">
+                        <button
+                          onClick={() => setStreakMode(!streakMode)}
+                          className={clsx(
+                            'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all',
+                            streakMode
+                              ? 'bg-pitch-500/20 text-pitch-400 border border-pitch-500/30'
+                              : 'bg-dark-800/50 text-dark-500 border border-dark-700 hover:text-dark-300'
+                          )}
+                        >
+                          <Zap className="w-3 h-3" />
+                          Quick Mode {streakMode ? 'ON' : 'OFF'}
+                        </button>
+                        {streakMode && (
+                          <span className="text-[10px] text-dark-500">Pass auto-advances</span>
+                        )}
+                      </div>
 
                     </>
                   )}
@@ -1356,6 +1433,93 @@ export function AuctionPage() {
                       ))}
                   </div>
                 )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* S1: Skip Category Confirmation Dialog */}
+        <AnimatePresence>
+          {showSkipConfirm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+              onClick={() => setShowSkipConfirm(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="glass-card p-6 max-w-sm w-full"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5 text-amber-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">Skip Category?</h3>
+                    <p className="text-sm text-dark-400">This cannot be undone</p>
+                  </div>
+                </div>
+
+                <p className="text-dark-300 text-sm mb-4">
+                  All {remainingPlayers?.counts[showSkipConfirm] || 0} remaining{' '}
+                  <span className="text-white font-medium">
+                    {CATEGORY_LABELS[showSkipConfirm] || showSkipConfirm}
+                  </span>{' '}
+                  players will be auctioned instantly with AI teams competing.
+                  You won't be able to bid on these players.
+                </p>
+
+                {/* S6: Top players preview */}
+                {(() => {
+                  const topPlayers = [...(remainingPlayers?.categories[showSkipConfirm] || [])]
+                    .sort((a, b) => b.overall_rating - a.overall_rating)
+                    .slice(0, 3);
+                  return topPlayers.length > 0 ? (
+                    <div className="mb-4 p-3 bg-dark-800/50 rounded-lg">
+                      <p className="text-xs text-dark-500 font-medium mb-2">Notable players you'll miss:</p>
+                      <div className="space-y-1.5">
+                        {topPlayers.map((p) => (
+                          <div key={p.id} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                <span className="text-xs font-bold text-white">{p.overall_rating}</span>
+                              </div>
+                              <span className="text-xs text-dark-300">{p.name}</span>
+                              {p.is_overseas && <Globe className="w-3 h-3 text-blue-400" />}
+                            </div>
+                            <span className="text-xs text-dark-500">{formatPrice(p.base_price)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setShowSkipConfirm(null)}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      skipCategoryMutation.mutate(showSkipConfirm);
+                      setShowSkipConfirm(null);
+                      setShowPlayerList(true);
+                    }}
+                    disabled={skipCategoryMutation.isPending}
+                    className="btn-primary bg-amber-600 hover:bg-amber-700"
+                  >
+                    Skip Category
+                  </button>
+                </div>
               </motion.div>
             </motion.div>
           )}

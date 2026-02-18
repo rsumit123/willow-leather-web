@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
   ChevronRight,
+  ChevronDown,
   Star,
   Globe,
   Users,
@@ -10,6 +11,7 @@ import {
   CheckCircle,
   XCircle,
   Gavel,
+  TrendingUp,
 } from 'lucide-react';
 import clsx from 'clsx';
 import type { PlayerBrief, SkipCategoryPlayerResult, SoldPlayerBrief } from '../../api/client';
@@ -55,6 +57,7 @@ export function PlayerListDrawer({
 }: PlayerListDrawerProps) {
   const [activeTab, setActiveTab] = useState<string>(currentCategory || 'marquee');
   const [showConfirm, setShowConfirm] = useState<string | null>(null);
+  const [showAllResults, setShowAllResults] = useState(false);
 
   // Update active tab when current category changes
   useEffect(() => {
@@ -170,7 +173,14 @@ export function PlayerListDrawer({
 
             {/* Skip Results Modal */}
             <AnimatePresence>
-              {skipResults && (
+              {skipResults && (() => {
+                const soldResults = skipResults.filter(r => r.is_sold);
+                const unsoldResults = skipResults.filter(r => !r.is_sold);
+                const totalSpend = soldResults.reduce((sum, r) => sum + r.sold_price, 0);
+                const topBuys = [...soldResults].sort((a, b) => b.sold_price - a.sold_price).slice(0, 3);
+                const shouldCollapse = skipResults.length > 6;
+
+                return (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -187,58 +197,122 @@ export function PlayerListDrawer({
                     </button>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto p-4">
-                    <p className="text-dark-400 text-sm mb-4">
-                      {skipResults.length} players auctioned
-                    </p>
-                    <div className="space-y-2">
-                      {skipResults.map((result) => (
-                        <div
-                          key={result.player_id}
-                          className={clsx(
-                            'flex items-center justify-between p-3 rounded-lg',
-                            result.is_sold ? 'bg-pitch-500/10' : 'bg-ball-500/10'
-                          )}
-                        >
-                          <div className="flex items-center gap-2">
-                            {result.is_sold ? (
-                              <CheckCircle className="w-4 h-4 text-pitch-500" />
-                            ) : (
-                              <XCircle className="w-4 h-4 text-ball-500" />
-                            )}
-                            <span className="text-white font-medium">
-                              {result.player_name}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            {result.is_sold ? (
-                              <>
-                                <p className="text-sm text-pitch-400">
-                                  {formatPrice(result.sold_price)}
-                                </p>
-                                <p className="text-xs text-dark-400">
-                                  {result.sold_to_team_name}
-                                </p>
-                              </>
-                            ) : (
-                              <p className="text-sm text-ball-400">Unsold</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {/* S2: Summary stats */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 rounded-lg bg-pitch-500/10 border border-pitch-500/20 text-center">
+                        <p className="text-2xl font-bold text-pitch-400">{soldResults.length}</p>
+                        <p className="text-xs text-dark-400">Sold</p>
+                        {totalSpend > 0 && (
+                          <p className="text-xs text-pitch-500 font-medium mt-1">{formatPrice(totalSpend)}</p>
+                        )}
+                      </div>
+                      <div className="p-3 rounded-lg bg-ball-500/10 border border-ball-500/20 text-center">
+                        <p className="text-2xl font-bold text-ball-400">{unsoldResults.length}</p>
+                        <p className="text-xs text-dark-400">Unsold</p>
+                      </div>
                     </div>
+
+                    {/* Top buys */}
+                    {topBuys.length > 0 && (
+                      <div className="p-3 bg-dark-800/50 rounded-lg">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <TrendingUp className="w-3.5 h-3.5 text-pitch-400" />
+                          <p className="text-xs text-dark-400 font-medium">Top Buys</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          {topBuys.map((r) => (
+                            <div key={r.player_id} className="flex items-center justify-between">
+                              <span className="text-sm text-white">{r.player_name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-dark-500">{r.sold_to_team_name}</span>
+                                <span className="text-xs text-pitch-400 font-semibold">{formatPrice(r.sold_price)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* S3: Expandable full results */}
+                    {shouldCollapse && (
+                      <button
+                        onClick={() => setShowAllResults(!showAllResults)}
+                        className="flex items-center gap-1.5 text-xs text-dark-400 hover:text-dark-300 transition-colors w-full justify-center"
+                      >
+                        <ChevronDown className={clsx('w-3.5 h-3.5 transition-transform', showAllResults && 'rotate-180')} />
+                        {showAllResults ? 'Hide details' : `Show all ${skipResults.length} results`}
+                      </button>
+                    )}
+
+                    {(!shouldCollapse || showAllResults) && (
+                      <div className="space-y-4">
+                        {/* Sold section */}
+                        {soldResults.length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-2">
+                              Sold ({soldResults.length})
+                            </h4>
+                            <div className="space-y-1.5">
+                              {soldResults.map((result) => (
+                                <div
+                                  key={result.player_id}
+                                  className="flex items-center justify-between p-2.5 rounded-lg bg-pitch-500/10"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <CheckCircle className="w-3.5 h-3.5 text-pitch-500" />
+                                    <span className="text-sm text-white">{result.player_name}</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-xs text-pitch-400 font-medium">{formatPrice(result.sold_price)}</p>
+                                    <p className="text-[10px] text-dark-500">{result.sold_to_team_name}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Unsold section */}
+                        {unsoldResults.length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-2">
+                              Unsold ({unsoldResults.length})
+                            </h4>
+                            <div className="space-y-1.5">
+                              {unsoldResults.map((result) => (
+                                <div
+                                  key={result.player_id}
+                                  className="flex items-center justify-between p-2.5 rounded-lg bg-ball-500/10"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <XCircle className="w-3.5 h-3.5 text-ball-500" />
+                                    <span className="text-sm text-dark-300">{result.player_name}</span>
+                                  </div>
+                                  <p className="text-xs text-ball-400">Unsold</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="p-4 border-t border-dark-800">
                     <button
-                      onClick={onClearResults}
+                      onClick={() => {
+                        setShowAllResults(false);
+                        onClearResults();
+                      }}
                       className="btn-primary w-full"
                     >
                       Continue Auction
                     </button>
                   </div>
                 </motion.div>
-              )}
+                );
+              })()}
             </AnimatePresence>
 
             {/* Tabs */}
@@ -474,14 +548,41 @@ export function PlayerListDrawer({
                       </div>
                     </div>
 
-                    <p className="text-dark-300 text-sm mb-6">
+                    <p className="text-dark-300 text-sm mb-4">
                       All {counts[showConfirm] || 0} remaining{' '}
                       <span className="text-white font-medium">
                         {CATEGORY_LABELS[showConfirm]}
                       </span>{' '}
-                      players will be auctioned instantly with AI teams competing for them.
+                      players will be auctioned instantly with AI teams competing.
                       You won't be able to bid on these players.
                     </p>
+
+                    {/* S6: Top players preview */}
+                    {(() => {
+                      const topPlayers = [...(categories[showConfirm] || [])]
+                        .sort((a, b) => b.overall_rating - a.overall_rating)
+                        .slice(0, 3);
+                      return topPlayers.length > 0 ? (
+                        <div className="mb-4 p-3 bg-dark-800/50 rounded-lg">
+                          <p className="text-xs text-dark-500 font-medium mb-2">Notable players you'll miss:</p>
+                          <div className="space-y-1.5">
+                            {topPlayers.map((p) => (
+                              <div key={p.id} className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1">
+                                    <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                    <span className="text-xs font-bold text-white">{p.overall_rating}</span>
+                                  </div>
+                                  <span className="text-xs text-dark-300">{p.name}</span>
+                                  {p.is_overseas && <Globe className="w-3 h-3 text-blue-400" />}
+                                </div>
+                                <span className="text-xs text-dark-500">{formatPrice(p.base_price)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
 
                     <div className="grid grid-cols-2 gap-3">
                       <button
