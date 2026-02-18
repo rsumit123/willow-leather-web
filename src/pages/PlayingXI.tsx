@@ -22,6 +22,7 @@ import { Loading } from '../components/common/Loading';
 import { PageHeader } from '../components/common/PageHeader';
 import { TraitBadges } from '../components/common/TraitBadge';
 import { IntentBadge } from '../components/common/IntentBadge';
+import { FormBadge } from '../components/common/FormBadge';
 import { PlayerDetailModal } from '../components/common/PlayerDetailModal';
 import type { BatterDNA, BowlerDNA } from '../api/client';
 import clsx from 'clsx';
@@ -203,6 +204,9 @@ function SortableBattingItem({
 
         {/* Stats */}
         <div className="flex items-center gap-2 text-xs flex-shrink-0">
+          {player.form !== undefined && player.form !== null && (
+            <FormBadge form={player.form} />
+          )}
           <div className="text-center">
             <p className={clsx(
               'font-semibold',

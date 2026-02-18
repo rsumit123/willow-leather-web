@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Home, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trophy, Home, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
 import type { MatchCompletionResponse, InningsScorecard } from '../../api/client';
 import { ManOfTheMatchReveal } from './ManOfTheMatchReveal';
+import { MatchAnalysis } from './MatchAnalysis';
 
 interface MatchCompletionScreenProps {
   result: MatchCompletionResponse;
+  careerId: number;
+  fixtureId: number;
   onBackToDashboard: () => void;
 }
 
-type TabType = 'summary' | 'team1' | 'team2';
+type TabType = 'summary' | 'team1' | 'team2' | 'analysis';
 
 function ScorecardTab({ innings }: { innings: InningsScorecard }) {
   const [showBowling, setShowBowling] = useState(false);
@@ -130,7 +133,7 @@ function ScorecardTab({ innings }: { innings: InningsScorecard }) {
   );
 }
 
-export function MatchCompletionScreen({ result, onBackToDashboard }: MatchCompletionScreenProps) {
+export function MatchCompletionScreen({ result, careerId, fixtureId, onBackToDashboard }: MatchCompletionScreenProps) {
   const [activeTab, setActiveTab] = useState<TabType>('summary');
 
   return (
@@ -199,6 +202,17 @@ export function MatchCompletionScreen({ result, onBackToDashboard }: MatchComple
         >
           {result.innings2.batting_team_name}
         </button>
+        <button
+          onClick={() => setActiveTab('analysis')}
+          className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
+            activeTab === 'analysis'
+              ? 'text-pitch-400 border-b-2 border-pitch-400'
+              : 'text-dark-400 hover:text-white'
+          }`}
+        >
+          <BarChart3 className="w-3.5 h-3.5" />
+          Analysis
+        </button>
       </div>
 
       {/* Content */}
@@ -265,6 +279,22 @@ export function MatchCompletionScreen({ result, onBackToDashboard }: MatchComple
               exit={{ opacity: 0, x: 20 }}
             >
               <ScorecardTab innings={result.innings2} />
+            </motion.div>
+          )}
+
+          {activeTab === 'analysis' && (
+            <motion.div
+              key="analysis"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+            >
+              <MatchAnalysis
+                careerId={careerId}
+                fixtureId={fixtureId}
+                team1Name={result.innings1.batting_team_name}
+                team2Name={result.innings2.batting_team_name}
+              />
             </motion.div>
           )}
         </AnimatePresence>

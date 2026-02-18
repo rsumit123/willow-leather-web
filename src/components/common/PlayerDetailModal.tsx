@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Globe, Star, Zap, Target, AlertTriangle, Hammer, Hand, Shield, ChevronDown } from 'lucide-react';
 import type { Player, BatterDNA, BowlerDNA } from '../../api/client';
 import { IntentBadge } from './IntentBadge';
+import { FormBadge } from './FormBadge';
 import clsx from 'clsx';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -259,10 +260,15 @@ export function PlayerDetailModal({ player, isOpen, onClose }: PlayerDetailModal
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-dark-400 mt-1">
-                    {player.age} years • {player.batting_style.replace('_', ' ')}
-                    {player.bowling_type !== 'none' && ` • ${player.bowling_type.replace('_', ' ')}`}
-                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-xs text-dark-400">
+                      {player.age} years • {player.batting_style.replace('_', ' ')}
+                      {player.bowling_type !== 'none' && ` • ${player.bowling_type.replace('_', ' ')}`}
+                    </p>
+                    {player.form !== undefined && player.form !== null && (
+                      <FormBadge form={player.form} size="md" />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

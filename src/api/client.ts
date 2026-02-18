@@ -219,6 +219,7 @@ export interface PlayerBrief {
   power: number;  // Power for batters
   traits: string[];  // Player traits
   batting_intent: string;  // Batting intent
+  form?: number;  // Player form (0.7-1.3)
   batting_dna?: BatterDNA;
   bowling_dna?: BowlerDNA;
 }
@@ -617,6 +618,78 @@ export interface MatchCompletionResponse {
   man_of_the_match: ManOfTheMatch;
 }
 
+// Match Analysis (Phase 3)
+export interface MatchMatchupEntry {
+  batter_id: number;
+  batter_name: string;
+  bowler_id: number;
+  bowler_name: string;
+  innings_number: number;
+  balls_faced: number;
+  runs_scored: number;
+  fours: number;
+  sixes: number;
+  dots: number;
+  strike_rate: number;
+  was_dismissed: boolean;
+  dismissal_type?: string;
+  wicket_delivery_type?: string;
+  exploited_weakness?: string;
+  batter_dna?: BatterDNA;
+  bowler_dna?: BowlerDNA;
+}
+
+export interface FormChangeEntry {
+  player_id: number;
+  player_name: string;
+  team_name: string;
+  old_form: number;
+  new_form: number;
+  delta: number;
+}
+
+export interface MatchAnalysisResponse {
+  innings1_matchups: MatchMatchupEntry[];
+  innings2_matchups: MatchMatchupEntry[];
+  form_changes: FormChangeEntry[];
+}
+
+// Transfer Window (Phase 3)
+export interface RetentionCandidate {
+  player_id: number;
+  player_name: string;
+  role: string;
+  overall_rating: number;
+  is_overseas: boolean;
+  form: number;
+  age: number;
+  season_runs: number;
+  season_wickets: number;
+  retention_slot: number;
+  retention_price: number;
+}
+
+export interface AIRetentionEntry {
+  team_id: number;
+  team_name: string;
+  retained_players: Array<{
+    player_id: number;
+    player_name: string;
+    retention_slot: number;
+    retention_price: number;
+  }>;
+  total_cost: number;
+}
+
+export interface TransferStatus {
+  career_status: string;
+  season_phase: string;
+  user_retentions_done: boolean;
+  ai_retentions_done: boolean;
+  players_released: boolean;
+  mini_auction_started: boolean;
+}
+
 // Player details included in leaderboard entries for modal display
 interface LeaderboardPlayerDetails {
   role: string;
@@ -799,4 +872,23 @@ export const matchApi = {
     api.get<{ player_id: number; name: string; role: string; batting: number; batting_dna?: BatterDNA }>(
       `/match/${careerId}/match/${fixtureId}/scout/${playerId}`
     ),
+  getAnalysis: (careerId: number, fixtureId: number) =>
+    api.get<MatchAnalysisResponse>(`/match/${careerId}/match/${fixtureId}/analysis`),
+};
+
+export const transferApi = {
+  start: (careerId: number) =>
+    api.post<{ status: string; message: string }>(`/transfer/${careerId}/start`),
+  getStatus: (careerId: number) =>
+    api.get<TransferStatus>(`/transfer/${careerId}/status`),
+  getRetentionCandidates: (careerId: number) =>
+    api.get<RetentionCandidate[]>(`/transfer/${careerId}/retention-candidates`),
+  retain: (careerId: number, playerIds: number[]) =>
+    api.post(`/transfer/${careerId}/retain`, { player_ids: playerIds }),
+  processAIRetentions: (careerId: number) =>
+    api.post<{ retentions: AIRetentionEntry[] }>(`/transfer/${careerId}/process-ai-retentions`),
+  releaseAndPrepare: (careerId: number) =>
+    api.post<{ players_in_pool: number; message: string }>(`/transfer/${careerId}/release-and-prepare`),
+  startMiniAuction: (careerId: number) =>
+    api.post<{ new_season_number: number; auction_id: number; pool_size: number; career_status: string; message: string }>(`/transfer/${careerId}/start-mini-auction`),
 };

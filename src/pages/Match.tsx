@@ -392,6 +392,8 @@ export function MatchPage() {
       return (
         <MatchCompletionScreen
           result={matchResult}
+          careerId={careerId!}
+          fixtureId={fid}
           onBackToDashboard={() => navigate('/dashboard')}
         />
       );

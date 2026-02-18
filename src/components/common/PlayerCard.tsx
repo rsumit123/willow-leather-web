@@ -3,6 +3,7 @@ import { User, Star, Globe } from 'lucide-react';
 import type { Player, PlayerBrief, BatterDNA, BowlerDNA } from '../../api/client';
 import { TraitBadges } from './TraitBadge';
 import { IntentBadge } from './IntentBadge';
+import { FormBadge } from './FormBadge';
 import clsx from 'clsx';
 
 interface PlayerCardProps {
@@ -133,12 +134,16 @@ export function PlayerCard({
           </div>
         </div>
 
-        {/* Rating */}
+        {/* Rating + Form */}
         <div className="flex flex-col items-end">
           <div className="flex items-center gap-1">
             <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
             <span className="font-bold text-white">{player.overall_rating}</span>
           </div>
+
+          {'form' in player && player.form !== undefined && (
+            <FormBadge form={player.form} />
+          )}
 
           {showPrice && (
             <span className="text-xs text-pitch-400 mt-1">

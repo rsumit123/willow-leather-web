@@ -15,7 +15,7 @@ import {
   Target,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { careerApi, seasonApi } from '../api/client';
+import { careerApi, seasonApi, transferApi } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { TeamBadge } from '../components/common/TeamCard';
@@ -643,7 +643,7 @@ export function DashboardPage() {
           </motion.div>
         )}
 
-        {/* Post-season - Next Season CTA */}
+        {/* Post-season - Transfer Window CTA */}
         {careerData?.status === 'post_season' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -653,15 +653,40 @@ export function DashboardPage() {
           >
             <h2 className="text-lg font-semibold mb-2">Season Complete</h2>
             <p className="text-dark-400 text-sm mb-4">
-              Ready to start Season {(careerData?.current_season_number || 1) + 1}?
+              Open the transfer window to retain players and hold a mini-auction for Season {(careerData?.current_season_number || 1) + 1}.
             </p>
             <button
+              onClick={() => {
+                transferApi.start(careerId!).then(() => {
+                  queryClient.invalidateQueries({ queryKey: ['career'] });
+                  navigate('/transfer-window');
+                });
+              }}
               className="btn-primary flex items-center justify-center gap-2 mx-auto"
-              disabled
             >
-              Start Next Season <ArrowRight className="w-4 h-4" />
+              Transfer Window <ArrowRight className="w-4 h-4" />
             </button>
-            <p className="text-xs text-dark-500 mt-2">Coming soon...</p>
+          </motion.div>
+        )}
+
+        {/* Transfer Window - redirect if already in transfer */}
+        {careerData?.status === 'transfer_window' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="glass-card p-5 text-center"
+          >
+            <h2 className="text-lg font-semibold mb-2">Transfer Window Open</h2>
+            <p className="text-dark-400 text-sm mb-4">
+              Continue with player retentions and the mini-auction.
+            </p>
+            <button
+              onClick={() => navigate('/transfer-window')}
+              className="btn-primary flex items-center justify-center gap-2 mx-auto"
+            >
+              Continue Transfer <ArrowRight className="w-4 h-4" />
+            </button>
           </motion.div>
         )}
 
