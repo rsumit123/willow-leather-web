@@ -422,6 +422,9 @@ export interface DeliveryOption {
   description: string;
   exec_difficulty: number;
   targets_weakness?: string;
+  times_used_this_over?: number;
+  max_per_over?: number | null;
+  is_restricted?: boolean;
 }
 
 export interface PitchInfo {

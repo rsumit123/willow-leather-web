@@ -1,5 +1,6 @@
-import { useRef } from 'react';
-import { Shield, Target, Zap, Play, SkipForward, FastForward, Star } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Shield, Target, Zap, Play, SkipForward, FastForward, Star, Info, X, AlertTriangle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import type { DeliveryOption } from '../../api/client';
 
@@ -30,6 +31,32 @@ function getDifficultyBg(difficulty: number, selected: boolean) {
   return 'bg-ball-500/15';
 }
 
+const weaknessLabels: Record<string, string> = {
+  vs_pace: 'Pace',
+  vs_bounce: 'Bounce',
+  vs_spin: 'Spin',
+  vs_deception: 'Deception',
+  off_side: 'Off Side',
+  leg_side: 'Leg Side',
+  power: 'Power',
+};
+
+function UsageDots({ used, max }: { used: number; max: number }) {
+  return (
+    <div className="flex gap-0.5 mt-0.5">
+      {Array.from({ length: max }).map((_, i) => (
+        <div
+          key={i}
+          className={clsx(
+            'w-1 h-1 rounded-full',
+            i < used ? 'bg-amber-400' : 'bg-dark-600'
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function TacticsPanel({
   aggression,
   setAggression,
@@ -45,6 +72,7 @@ export function TacticsPanel({
 }: TacticsPanelProps) {
   const isDisabled = isLoading || disabled;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [infoDelivery, setInfoDelivery] = useState<DeliveryOption | null>(null);
 
   const aggressionOptions = [
     { id: 'defend', icon: Shield, color: 'text-blue-400', activeColor: 'bg-blue-500/20' },
@@ -108,36 +136,68 @@ export function TacticsPanel({
               >
                 {availableDeliveries.map((d) => {
                   const isSelected = selectedDelivery === d.name;
+                  const isRestricted = d.is_restricted;
+                  const isAtPenalty = !isRestricted && d.max_per_over != null &&
+                    (d.times_used_this_over ?? 0) >= d.max_per_over;
                   const diffColor = getDifficultyColor(d.exec_difficulty);
-                  const diffBg = getDifficultyBg(d.exec_difficulty, isSelected);
+                  const diffBg = isRestricted
+                    ? 'bg-red-500/10'
+                    : getDifficultyBg(d.exec_difficulty, isSelected);
 
                   return (
                     <button
                       key={d.name}
-                      onClick={() => onSelectDelivery?.(isSelected ? null : d.name)}
+                      onClick={() => {
+                        if (isRestricted) return;
+                        onSelectDelivery?.(isSelected ? null : d.name);
+                      }}
+                      disabled={isRestricted}
                       className={clsx(
-                        'flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-all duration-150 min-w-[72px] flex-shrink-0',
+                        'flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl border transition-all duration-150 min-w-[76px] flex-shrink-0 relative',
                         diffBg,
-                        isSelected
-                          ? 'border-pitch-500/50 ring-1 ring-pitch-500/30'
-                          : 'border-dark-700/50 hover:border-dark-600/50',
+                        isRestricted
+                          ? 'border-red-500/40 opacity-50 cursor-not-allowed'
+                          : isAtPenalty
+                            ? isSelected
+                              ? 'border-amber-500/50 ring-1 ring-amber-500/30'
+                              : 'border-amber-500/30'
+                            : isSelected
+                              ? 'border-pitch-500/50 ring-1 ring-pitch-500/30'
+                              : 'border-dark-700/50 hover:border-dark-600/50',
                       )}
                       style={{ scrollSnapAlign: 'start' }}
                     >
+                      {/* Info button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInfoDelivery(d);
+                        }}
+                        className="absolute top-1 right-1 p-0.5 rounded-full text-dark-500 hover:text-dark-300 transition-colors"
+                      >
+                        <Info className="w-2.5 h-2.5" />
+                      </button>
+
                       <span className={clsx(
                         'text-[11px] font-semibold leading-tight text-center',
-                        isSelected ? 'text-white' : 'text-dark-200'
+                        isRestricted ? 'text-dark-500 line-through' : isSelected ? 'text-white' : 'text-dark-200'
                       )}>
                         {d.display_name}
                       </span>
+
                       <div className="flex items-center gap-1">
-                        <span className={clsx('text-[10px] font-mono font-bold', diffColor)}>
-                          {d.exec_difficulty}
+                        <span className={clsx('text-[10px] font-mono font-bold', isRestricted ? 'text-red-400' : diffColor)}>
+                          {isRestricted ? 'N/B' : d.exec_difficulty}
                         </span>
-                        {d.targets_weakness && (
+                        {d.targets_weakness && !isRestricted && (
                           <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                         )}
                       </div>
+
+                      {/* Usage dots */}
+                      {d.max_per_over != null && (
+                        <UsageDots used={d.times_used_this_over ?? 0} max={d.max_per_over} />
+                      )}
                     </button>
                   );
                 })}
@@ -147,6 +207,52 @@ export function TacticsPanel({
                 Auto-selecting delivery
               </div>
             )}
+
+            {/* Delivery Info Tooltip */}
+            <AnimatePresence>
+              {infoDelivery && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.15 }}
+                  className="bg-dark-800 border border-dark-700/50 rounded-xl p-3 -mt-1"
+                >
+                  <div className="flex items-start justify-between mb-1.5">
+                    <span className="text-xs font-semibold text-white">{infoDelivery.display_name}</span>
+                    <button
+                      onClick={() => setInfoDelivery(null)}
+                      className="p-0.5 rounded text-dark-400 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-dark-300 leading-relaxed mb-2">{infoDelivery.description}</p>
+                  <div className="flex flex-wrap gap-2 text-[10px]">
+                    <span className={clsx('px-1.5 py-0.5 rounded border', getDifficultyColor(infoDelivery.exec_difficulty))}>
+                      Difficulty: {infoDelivery.exec_difficulty}
+                    </span>
+                    {infoDelivery.targets_weakness && (
+                      <span className="px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-400 flex items-center gap-1">
+                        <Star className="w-2.5 h-2.5 fill-amber-400" />
+                        Exploits {weaknessLabels[infoDelivery.targets_weakness] || infoDelivery.targets_weakness}
+                      </span>
+                    )}
+                    {infoDelivery.max_per_over != null && (
+                      <span className="px-1.5 py-0.5 rounded border border-dark-600 text-dark-300 flex items-center gap-1">
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        Max {infoDelivery.max_per_over}/over
+                      </span>
+                    )}
+                    {infoDelivery.is_restricted && (
+                      <span className="px-1.5 py-0.5 rounded border border-red-500/30 text-red-400">
+                        Restricted — No Ball if bowled
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         )}
 

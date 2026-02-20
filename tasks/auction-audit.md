@@ -1,5 +1,42 @@
 # Auction Feature Audit
 
+## Status Tracker
+
+| Item | Description | Status |
+|------|-------------|--------|
+| S1 | Surface "Skip remaining N" link on main auction screen | ✅ DONE |
+| S2 | Add summary card to skip results | ✅ DONE |
+| S3 | Group skip results into sold/unsold sections | ✅ DONE |
+| S4 | Add category progress label to main screen header | ✅ DONE |
+| S5 | Quick-Pass Streak Mode | ✅ DONE |
+| S6 | Add key player preview to skip confirmation dialog | ✅ DONE |
+| S7 | Add progress bar during category skip | ⬜ PENDING |
+| S8 | Quick-Skip Queue with per-player checkboxes | ⬜ PENDING |
+| A1 | Extract formatPrice/getPlayerType to shared utils | ✅ DONE |
+| A2 | Fix max_bid_possible negative slots bug | ✅ DONE |
+| A3 | Remove dead POST /pass endpoint | ✅ DONE |
+| A4 | Add .catch() to team squad fetch | ✅ DONE |
+| A5 | Disable Pass button during isManualBidding | ✅ DONE |
+| A6 | Add input validation to max bid cap | ✅ DONE |
+| B1 | Create BudgetGauge component with budget/squad/overseas bars | ✅ DONE |
+| B2 | Replace budget text in Auction.tsx header with BudgetGauge | ✅ DONE |
+| B3 | Add warning logic (amber < 30%, red < 15%) | ✅ DONE |
+| B4 | Add "avg per remaining slot" calculation and display | ✅ DONE |
+| C1 | Backend: Return bid list from simulate-bidding | ✅ DONE |
+| C2 | Create BidTicker component with animated bid entries | ✅ DONE |
+| C3 | Integrate ticker below player card in auction loop | ✅ DONE |
+| C4 | Auto-scroll, team color accents, pulse animation on latest bid | ✅ DONE |
+| D1 | Add drag gesture to player card using framer-motion | ⬜ PENDING |
+| D2 | Implement swipe-right-to-bid with green overlay | ⬜ PENDING |
+| D3 | Implement swipe-left-to-pass with red overlay | ⬜ PENDING |
+| D4 | Build bottom-sheet slider for auto-bid cap | ⬜ PENDING |
+| D5 | Add directional hint arrows for first 3 players | ⬜ PENDING |
+| D6 | Haptic feedback via navigator.vibrate() on swipe completion | ⬜ PENDING |
+
+**Summary:** 22 of 28 items complete. Phases A, B, C fully done. S7, S8, and all of Phase D remaining.
+
+---
+
 ## 1. Current User Flow
 
 ### Pre-Auction (Info Screen)
