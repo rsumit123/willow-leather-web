@@ -802,7 +802,6 @@ export const auctionApi = {
     api.get<TeamAuctionState[]>(`/auction/${careerId}/teams`),
   nextPlayer: (careerId: number) => api.post<NextPlayerResponse>(`/auction/${careerId}/next-player`),
   bid: (careerId: number) => api.post(`/auction/${careerId}/bid`),
-  pass: (careerId: number) => api.post(`/auction/${careerId}/pass`),
   simulateBidding: (careerId: number) =>
     api.post(`/auction/${careerId}/simulate-bidding`),
   finalizePlayer: (careerId: number) =>
