@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import type { PlayerBrief, SkipCategoryPlayerResult, SoldPlayerBrief } from '../../api/client';
+import { formatPrice as formatPriceUtil, getPlayerType as getPlayerTypeUtil } from '../../utils/format';
 
 interface PlayerListDrawerProps {
   isOpen: boolean;
@@ -66,32 +67,8 @@ export function PlayerListDrawer({
     }
   }, [currentCategory, isOpen]);
 
-  const formatPrice = (amount: number) => {
-    if (amount >= 10000000) {
-      return `${(amount / 10000000).toFixed(2)} Cr`;
-    }
-    return `${((amount || 0) / 100000).toFixed(0)} L`;
-  };
-
-  const getPlayerType = (role: string, bowlingType?: string) => {
-    if (role === 'bowler' && bowlingType) {
-      const typeMap: Record<string, string> = {
-        pace: 'Fast',
-        medium: 'Medium',
-        off_spin: 'Off Spin',
-        leg_spin: 'Leg Spin',
-        left_arm_spin: 'LA Spin',
-      };
-      return typeMap[bowlingType] || 'Bowler';
-    }
-    const roleMap: Record<string, string> = {
-      batsman: 'Batsman',
-      bowler: 'Bowler',
-      all_rounder: 'All-Rounder',
-      wicket_keeper: 'WK-Bat',
-    };
-    return roleMap[role] || role;
-  };
+  const formatPrice = (amount: number) => formatPriceUtil(amount, { prefix: false });
+  const getPlayerType = (role: string, bowlingType?: string) => getPlayerTypeUtil(role, bowlingType, { short: true });
 
   const handleSkipClick = (category: string) => {
     setShowConfirm(category);

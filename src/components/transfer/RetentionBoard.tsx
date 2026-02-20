@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Check, Globe, Star, AlertCircle } from 'lucide-react';
 import type { RetentionCandidate } from '../../api/client';
 import { FormBadge } from '../common/FormBadge';
+import { formatPrice } from '../../utils/format';
 import clsx from 'clsx';
 
 interface RetentionBoardProps {
@@ -24,11 +25,6 @@ const ROLE_SHORT: Record<string, string> = {
   all_rounder: 'AR',
   wicket_keeper: 'WK',
 };
-
-function formatPrice(price: number): string {
-  if (price >= 10_000_000) return `${(price / 10_000_000).toFixed(1)}Cr`;
-  return `${(price / 100_000).toFixed(0)}L`;
-}
 
 export function RetentionBoard({ candidates, onConfirm, isSubmitting }: RetentionBoardProps) {
   const [selected, setSelected] = useState<Set<number>>(new Set());

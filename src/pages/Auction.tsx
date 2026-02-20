@@ -36,6 +36,7 @@ import { Loading } from '../components/common/Loading';
 import { PageHeader } from '../components/common/PageHeader';
 import { TraitBadges } from '../components/common/TraitBadge';
 import { IntentBadge } from '../components/common/IntentBadge';
+import { formatPrice, getPlayerType } from '../utils/format';
 import clsx from 'clsx';
 
 function getDnaBarColor(value: number, isWeakness: boolean) {
@@ -334,12 +335,14 @@ export function AuctionPage() {
   const isAtRiskOfNotMeeting11 = playersNeededFor11 > 0 &&
     (userTeamState?.remaining_budget || 0) < playersNeededFor11 * 5000000; // 50L base price minimum
 
-  // Parse max bid cap from input
+  // Parse max bid cap from input, clamped to [0, remaining_budget]
   const parseMaxBidCap = (): number => {
-    if (!maxBidCap.trim()) return calculateMaxAffordable();
+    const maxAffordable = calculateMaxAffordable();
+    if (!maxBidCap.trim()) return maxAffordable;
     const value = parseFloat(maxBidCap);
-    if (isNaN(value)) return calculateMaxAffordable();
-    return value * 10000000; // Convert crore to rupees
+    if (isNaN(value) || value <= 0) return maxAffordable;
+    const inRupees = value * 10000000; // Convert crore to rupees
+    return Math.min(inRupees, maxAffordable);
   };
 
   // Show toast message
@@ -416,6 +419,8 @@ export function AuctionPage() {
     if (selectedTeamId && careerId) {
       careerApi.getSquad(careerId, selectedTeamId).then((response) => {
         setTeamPlayers(response.data.players);
+      }).catch(() => {
+        setTeamPlayers([]);
       });
     }
   }, [selectedTeamId, careerId]);
@@ -428,28 +433,6 @@ export function AuctionPage() {
     }
   }, [state?.current_player?.id]);
 
-  // Format price
-  const formatPrice = (amount: number) => {
-    if (amount >= 10000000) {
-      return `₹${(amount / 10000000).toFixed(2)} Cr`;
-    }
-    return `₹${((amount || 0) / 100000).toFixed(0)} L`;
-  };
-
-  // Get player type display
-  const getPlayerType = (role: string, bowlingType: string) => {
-    if (role === 'bowler') {
-      const typeMap: Record<string, string> = {
-        pace: 'Fast Bowler',
-        medium: 'Medium Pacer',
-        off_spin: 'Off Spinner',
-        leg_spin: 'Leg Spinner',
-        left_arm_spin: 'Left-Arm Spinner',
-      };
-      return typeMap[bowlingType] || 'Bowler';
-    }
-    return role.replace('_', ' ');
-  };
 
   if (!careerId) {
     navigate('/');

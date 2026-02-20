@@ -2,16 +2,12 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, ChevronRight } from 'lucide-react';
 import type { AIRetentionEntry } from '../../api/client';
+import { formatPrice } from '../../utils/format';
 import clsx from 'clsx';
 
 interface AIRetentionRevealProps {
   retentions: AIRetentionEntry[];
   onComplete: () => void;
-}
-
-function formatPrice(price: number): string {
-  if (price >= 10_000_000) return `${(price / 10_000_000).toFixed(1)}Cr`;
-  return `${(price / 100_000).toFixed(0)}L`;
 }
 
 export function AIRetentionReveal({ retentions, onComplete }: AIRetentionRevealProps) {
