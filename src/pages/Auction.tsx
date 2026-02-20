@@ -32,6 +32,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { auctionApi, careerApi, type Player, type SkipCategoryPlayerResult, type BatterDNA, type BowlerDNA } from '../api/client';
 import { PlayerListDrawer } from '../components/auction/PlayerListDrawer';
 import { BudgetGauge } from '../components/auction/BudgetGauge';
+import { BidTicker } from '../components/auction/BidTicker';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { PageHeader } from '../components/common/PageHeader';
@@ -978,6 +979,14 @@ export function AuctionPage() {
                     </p>
                   )}
                 </motion.div>
+
+                {/* Bid Ticker */}
+                {state?.bid_history && state.bid_history.length > 0 && (
+                  <BidTicker
+                    bids={state.bid_history}
+                    userTeamName={career?.user_team?.short_name}
+                  />
+                )}
 
                 {/* Phase indicator */}
                 {phase === 'ai_simulation' && (

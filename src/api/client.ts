@@ -234,6 +234,11 @@ export interface Career {
   user_team?: Team;
 }
 
+export interface BidHistoryEntry {
+  team_name: string;
+  amount: number;
+}
+
 export interface AuctionState {
   status: string;
   current_player?: PlayerBrief;
@@ -244,6 +249,7 @@ export interface AuctionState {
   players_unsold: number;
   total_players: number;
   current_category?: string;
+  bid_history?: BidHistoryEntry[];
 }
 
 export interface NextPlayerResponse {
@@ -306,6 +312,7 @@ export interface AutoBidResponse {
   current_bid?: number;
   current_bidder_team_name?: string;
   next_bid_needed?: number;
+  bid_history?: BidHistoryEntry[];
 }
 
 export interface SoldPlayerBrief {
