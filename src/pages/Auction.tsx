@@ -31,6 +31,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { auctionApi, careerApi, type Player, type SkipCategoryPlayerResult, type BatterDNA, type BowlerDNA } from '../api/client';
 import { PlayerListDrawer } from '../components/auction/PlayerListDrawer';
+import { BudgetGauge } from '../components/auction/BudgetGauge';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { PageHeader } from '../components/common/PageHeader';
@@ -783,17 +784,11 @@ export function AuctionPage() {
               </div>
 
               {userTeamState && (
-                <div className="text-right">
-                  <p className={clsx(
-                    'font-bold',
-                    userTeamState.remaining_budget < 50000000 ? 'text-ball-400' : 'text-pitch-400'
-                  )}>
-                    {formatPrice(userTeamState.remaining_budget)}
-                  </p>
-                  <p className="text-xs text-dark-400">
-                    {userTeamState.total_players}/25 players
-                  </p>
-                </div>
+                <BudgetGauge
+                  remainingBudget={userTeamState.remaining_budget}
+                  totalPlayers={userTeamState.total_players}
+                  overseasPlayers={userTeamState.overseas_players}
+                />
               )}
             </div>
 
