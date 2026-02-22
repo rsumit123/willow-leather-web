@@ -64,6 +64,7 @@ export function TrainingPage() {
       setTrainingComplete(true);
       queryClient.invalidateQueries({ queryKey: ['calendar-current'] });
       queryClient.invalidateQueries({ queryKey: ['active-boosts'] });
+      queryClient.invalidateQueries({ queryKey: ['available-drills'] });
     },
     onError: () => setTrainError('Training failed. Please try again.'),
   });
