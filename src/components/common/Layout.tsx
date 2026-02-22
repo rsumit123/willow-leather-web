@@ -49,9 +49,10 @@ export function Layout() {
   const tierColor = career?.tier === 'district' ? 'amber' : career?.tier === 'state' ? 'blue' : 'pitch';
 
   // Hide nav on certain pages
-  const hideNav = ['/', '/new-career', '/auction'].some((p) =>
-    location.pathname.startsWith(p)
-  );
+  const hideNav =
+    location.pathname === '/' ||
+    location.pathname.startsWith('/new-career') ||
+    location.pathname.startsWith('/auction');
 
   const handleNewCareer = () => {
     clearGame();
