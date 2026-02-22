@@ -13,6 +13,7 @@ import { PitchReveal } from '../components/match/PitchReveal';
 import { TacticsPanel } from '../components/match/TacticsPanel';
 import { TossScreen } from '../components/match/TossScreen';
 import { BowlerSelection } from '../components/match/BowlerSelection';
+import { BatterSelection } from '../components/match/BatterSelection';
 import { ScorecardDrawer } from '../components/match/ScorecardDrawer';
 import { MatchCompletionScreen } from '../components/match/MatchCompletionScreen';
 import { PreMatchXIReview } from '../components/match/PreMatchXIReview';
@@ -33,6 +34,7 @@ export function MatchPage() {
   const [showInningsChange, setShowInningsChange] = useState(false);
   const [inningsChangeInfo, setInningsChangeInfo] = useState<{ target: number; battingTeam: string } | null>(null);
   const [showBowlerSelect, setShowBowlerSelect] = useState(false);
+  const [showBatterSelect, setShowBatterSelect] = useState(false);
   const [showScorecard, setShowScorecard] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState<string | null>(null);
   const [scoutPlayerId, setScoutPlayerId] = useState<number | null>(null);
@@ -260,6 +262,15 @@ export function MatchPage() {
     gcTime: 0, // Don't cache this data at all
   });
 
+  // Get available batters query
+  const { data: availableBatters, isFetching: isFetchingBatters } = useQuery({
+    queryKey: ['available-batters', careerId, fid],
+    queryFn: () => matchApi.getAvailableBatters(careerId!, fid).then((r) => r.data),
+    enabled: !!careerId && !!fid && showBatterSelect,
+    staleTime: 0,
+    gcTime: 0,
+  });
+
   // Get live scorecard query
   const { data: scorecard, isLoading: scorecardLoading } = useQuery({
     queryKey: ['scorecard', careerId, fid],
@@ -284,6 +295,15 @@ export function MatchPage() {
     },
   });
 
+  // Select batter mutation
+  const selectBatterMutation = useMutation({
+    mutationFn: (batterId: number) => matchApi.selectBatter(careerId!, fid, batterId),
+    onSuccess: (response) => {
+      queryClient.setQueryData(['match-state', careerId, fid], response.data);
+      setShowBatterSelect(false);
+    },
+  });
+
   // Show bowler selection modal when:
   // 1. can_change_bowler is true (start of over, user is bowling)
   // 2. No bowler is currently selected (prevents reopening after selection)
@@ -296,6 +316,18 @@ export function MatchPage() {
       setShowBowlerSelect(true);
     }
   }, [state?.can_change_bowler, state?.bowler, showBowlerSelect, showInningsChange, queryClient, careerId, fid]);
+
+  // Show batter selection modal when:
+  // 1. can_change_batter is true (wicket fell, user is batting)
+  // 2. No striker is currently selected
+  // 3. Modal is not already showing
+  // 4. Not showing innings change modal
+  useEffect(() => {
+    if (state?.can_change_batter && !state?.striker && !showBatterSelect && !showInningsChange) {
+      queryClient.invalidateQueries({ queryKey: ['available-batters', careerId, fid] });
+      setShowBatterSelect(true);
+    }
+  }, [state?.can_change_batter, state?.striker, showBatterSelect, showInningsChange, queryClient, careerId, fid]);
 
   // Auto-dismiss milestone alert after 3 seconds
   useEffect(() => {
@@ -458,6 +490,15 @@ export function MatchPage() {
         />
       )}
 
+      {/* Batter Selection Modal */}
+      {showBatterSelect && availableBatters && !isFetchingBatters && (
+        <BatterSelection
+          batters={availableBatters.batters}
+          onSelect={(batterId) => selectBatterMutation.mutate(batterId)}
+          isLoading={selectBatterMutation.isPending}
+        />
+      )}
+
       {/* Pitch Reveal */}
       <PitchReveal
         isOpen={showPitchReveal}
@@ -516,7 +557,7 @@ export function MatchPage() {
           onSimulateOver={() => simulateOverMutation.mutate(aggression)}
           onSimulateInnings={() => simulateInningsMutation.mutate()}
           isLoading={playBallMutation.isPending || simulateOverMutation.isPending || simulateInningsMutation.isPending}
-          disabled={showBowlerSelect || showInningsChange || (state?.can_change_bowler && !state?.bowler)}
+          disabled={showBowlerSelect || showBatterSelect || showInningsChange || (state?.can_change_bowler && !state?.bowler) || (state?.can_change_batter && !state?.striker)}
           isUserBatting={state.is_user_batting}
           availableDeliveries={state.available_deliveries}
           selectedDelivery={selectedDelivery}

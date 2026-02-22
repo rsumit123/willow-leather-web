@@ -490,6 +490,7 @@ export interface MatchState {
   user_team_name: string;
   innings_just_changed: boolean;
   can_change_bowler: boolean;
+  can_change_batter: boolean;
   pitch_info?: PitchInfo;
   available_deliveries?: DeliveryOption[];
   last_delivery_name?: string;
@@ -514,6 +515,25 @@ export interface AvailableBowler {
 export interface AvailableBowlersResponse {
   bowlers: AvailableBowler[];
   last_bowler_id?: number;
+}
+
+export interface AvailableBatter {
+  id: number;
+  name: string;
+  role: string;
+  batting_skill: number;
+  batting_style: string;
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
+  is_next_in_order: boolean;
+  traits?: string[];
+  batting_dna?: BatterDNA;
+}
+
+export interface AvailableBattersResponse {
+  batters: AvailableBatter[];
 }
 
 export interface PlayoffMatch {
@@ -873,6 +893,10 @@ export const matchApi = {
     api.get<AvailableBowlersResponse>(`/match/${careerId}/match/${fixtureId}/available-bowlers`),
   selectBowler: (careerId: number, fixtureId: number, bowlerId: number) =>
     api.post<MatchState>(`/match/${careerId}/match/${fixtureId}/select-bowler`, { bowler_id: bowlerId }),
+  getAvailableBatters: (careerId: number, fixtureId: number) =>
+    api.get<AvailableBattersResponse>(`/match/${careerId}/match/${fixtureId}/available-batters`),
+  selectBatter: (careerId: number, fixtureId: number, batterId: number) =>
+    api.post<MatchState>(`/match/${careerId}/match/${fixtureId}/select-batter`, { batter_id: batterId }),
   getScorecard: (careerId: number, fixtureId: number) =>
     api.get<LiveScorecardResponse>(`/match/${careerId}/match/${fixtureId}/scorecard`),
   getMatchResult: (careerId: number, fixtureId: number) =>
