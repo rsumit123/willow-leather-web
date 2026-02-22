@@ -16,6 +16,11 @@ import { MatchPage } from './pages/Match';
 import { PlayingXIPage } from './pages/PlayingXI';
 import { LeaderboardsPage } from './pages/Leaderboards';
 import { TransferWindowPage } from './pages/TransferWindow';
+import { CalendarPage } from './pages/Calendar';
+import { InboxPage } from './pages/Inbox';
+import { TrainingPage } from './pages/Training';
+import { ProgressionPage } from './pages/Progression';
+import { ManagerStatsPage } from './pages/ManagerStats';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +59,11 @@ function App() {
                   <Route path="/playing-xi" element={<PlayingXIPage />} />
                   <Route path="/leaderboards" element={<LeaderboardsPage />} />
                   <Route path="/transfer-window" element={<TransferWindowPage />} />
+                  <Route path="/calendar" element={<CalendarPage />} />
+                  <Route path="/inbox" element={<InboxPage />} />
+                  <Route path="/training" element={<TrainingPage />} />
+                  <Route path="/progression" element={<ProgressionPage />} />
+                  <Route path="/manager-stats" element={<ManagerStatsPage />} />
                 </Route>
               </Route>
 

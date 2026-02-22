@@ -2,33 +2,51 @@ import { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Home,
+  LayoutDashboard,
   Users,
-  Calendar,
+  CalendarDays,
   Trophy,
+  Swords,
+  Home,
   Menu,
   X,
   Plus,
   LogOut,
   User,
+  Bell,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { notificationApi } from '../../api/client';
 import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
 import clsx from 'clsx';
 
 const navItems = [
-  { path: '/dashboard', icon: Home, label: 'Home' },
+  { path: '/dashboard', icon: LayoutDashboard, label: 'Hub' },
+  { path: '/calendar', icon: CalendarDays, label: 'Calendar' },
   { path: '/squad', icon: Users, label: 'Squad' },
-  { path: '/fixtures', icon: Calendar, label: 'Fixtures' },
+  { path: '/fixtures', icon: Swords, label: 'Matches' },
   { path: '/standings', icon: Trophy, label: 'Table' },
 ];
 
 export function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { career, clearGame } = useGameStore();
+  const { career, careerId, clearGame } = useGameStore();
   const { user, logout } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Unread notification count
+  const { data: unreadData } = useQuery({
+    queryKey: ['unread-count', careerId],
+    queryFn: () => notificationApi.unreadCount(careerId!).then((r) => r.data),
+    enabled: !!careerId,
+    refetchInterval: 30000,
+  });
+  const unreadCount = unreadData?.count || 0;
+
+  // Tier color helpers
+  const tierColor = career?.tier === 'district' ? 'amber' : career?.tier === 'state' ? 'blue' : 'pitch';
 
   // Hide nav on certain pages
   const hideNav = ['/', '/new-career', '/auction'].some((p) =>
@@ -79,9 +97,32 @@ export function Layout() {
                   </span>
                 </div>
               )}
+              {career.tier && (
+                <span className={clsx(
+                  'text-xs px-2 py-0.5 rounded-full font-medium capitalize',
+                  tierColor === 'amber' && 'bg-amber-500/20 text-amber-400',
+                  tierColor === 'blue' && 'bg-blue-500/20 text-blue-400',
+                  tierColor === 'pitch' && 'bg-pitch-500/20 text-pitch-400',
+                )}>
+                  {career.tier}
+                </span>
+              )}
               <span className="text-sm text-dark-400">
-                Season {career.current_season_number}
+                S{career.current_season_number}
               </span>
+
+              {/* Inbox Bell */}
+              <Link
+                to="/inbox"
+                className="relative p-2 hover:bg-dark-800 rounded-lg transition-colors"
+              >
+                <Bell className="w-5 h-5 text-dark-300" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-ball-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Link>
 
               {/* User Avatar */}
               {user && (

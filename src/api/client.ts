@@ -230,8 +230,119 @@ export interface Career {
   status: string;
   current_season_number: number;
   user_team_id?: number;
+  tier: string;            // "district" | "state" | "ipl"
+  reputation: number;      // 0-100
+  trophies_won: number;
+  game_over: boolean;
   created_at: string;
   user_team?: Team;
+}
+
+// ─── Calendar Types ────────────────────────────────────────────────
+export interface GameDay {
+  id: number;
+  date: string;
+  day_type: string;        // "match_day" | "training" | "rest" | "travel" | "event"
+  fixture_id?: number;
+  event_description?: string;
+  is_current: boolean;
+  opponent_name?: string;
+  opponent_short_name?: string;
+  venue?: string;
+  match_number?: number;
+  is_user_home?: boolean;
+}
+
+export interface CalendarCurrent {
+  current_day: GameDay | null;
+  upcoming: GameDay[];
+  has_calendar: boolean;
+}
+
+export interface CalendarMonth {
+  year: number;
+  month: number;
+  days: GameDay[];
+}
+
+// ─── Notification Types ────────────────────────────────────────────
+export interface Notification {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  icon?: string;
+  read: boolean;
+  created_at: string;
+  action_url?: string;
+}
+
+// ─── Training Types ────────────────────────────────────────────────
+export interface Drill {
+  drill_type: string;
+  display_name: string;
+  description: string;
+  boost_attribute: string;
+  boost_amount: number;
+  duration: number;
+  best_for: string[];
+  icon: string;
+}
+
+export interface ActiveBoost {
+  player_id: number;
+  boost_attribute: string;
+  boost_amount: number;
+  matches_remaining: number;
+  drill_type: string;
+}
+
+// ─── Progression Types ─────────────────────────────────────────────
+export interface BoardObjective {
+  id: number;
+  description: string;
+  target_type: string;
+  target_value: number;
+  achieved: boolean;
+  consequence: string;
+}
+
+export interface ProgressionStatus {
+  tier: string;
+  reputation: number;
+  reputation_title: string;
+  trophies_won: number;
+  seasons_played: number;
+  current_season: number;
+  game_over: boolean;
+  game_over_reason?: string;
+  promotion_condition?: string;
+  objectives: BoardObjective[];
+}
+
+export interface SeasonHistoryEntry {
+  season_number: number;
+  tier: string;
+  team_name: string;
+  wins: number;
+  losses: number;
+  position?: number;
+  is_champion: boolean;
+  is_runner_up: boolean;
+  is_current: boolean;
+}
+
+export interface ManagerStats {
+  manager_name: string;
+  avatar_url?: string;
+  reputation: number;
+  reputation_title: string;
+  trophies_won: number;
+  total_matches: number;
+  total_wins: number;
+  win_percentage: number;
+  seasons_played: number;
+  season_history: SeasonHistoryEntry[];
 }
 
 export interface BidHistoryEntry {
@@ -802,8 +913,8 @@ export interface LeaderboardsResponse {
 // API functions
 export const careerApi = {
   getTeamChoices: () => api.get<TeamChoice[]>('/career/teams/choices'),
-  create: (name: string, teamIndex: number) =>
-    api.post<Career>('/career/new', { name, team_index: teamIndex }),
+  create: (name: string, teamIndex?: number) =>
+    api.post<Career>('/career/new', { name, team_index: teamIndex ?? null }),
   list: () => api.get<Career[]>('/career/list'),
   get: (id: number) => api.get<Career>(`/career/${id}`),
   delete: (id: number) => api.delete(`/career/${id}`),
@@ -924,4 +1035,52 @@ export const transferApi = {
     api.post<{ players_in_pool: number; message: string }>(`/transfer/${careerId}/release-and-prepare`),
   startMiniAuction: (careerId: number) =>
     api.post<{ new_season_number: number; auction_id: number; pool_size: number; career_status: string; message: string }>(`/transfer/${careerId}/start-mini-auction`),
+};
+
+// ─── Calendar API ──────────────────────────────────────────────────
+export const calendarApi = {
+  getCurrent: (careerId: number) =>
+    api.get<CalendarCurrent>(`/calendar/${careerId}/current`),
+  advance: (careerId: number, skipToEvent: boolean = false) =>
+    api.post<{ day: GameDay; season_ended: boolean } | { message: string; season_ended: boolean }>(
+      `/calendar/${careerId}/advance?skip_to_event=${skipToEvent}`
+    ),
+  getMonth: (careerId: number, year: number, month: number) =>
+    api.get<CalendarMonth>(`/calendar/${careerId}/month/${year}/${month}`),
+};
+
+// ─── Notification API ──────────────────────────────────────────────
+export const notificationApi = {
+  list: (careerId: number, limit: number = 20, offset: number = 0) =>
+    api.get<Notification[]>(`/notification/${careerId}?limit=${limit}&offset=${offset}`),
+  unreadCount: (careerId: number) =>
+    api.get<{ count: number }>(`/notification/${careerId}/unread-count`),
+  markRead: (careerId: number, notificationId: number) =>
+    api.post(`/notification/${careerId}/${notificationId}/read`),
+  markAllRead: (careerId: number) =>
+    api.post(`/notification/${careerId}/read-all`),
+};
+
+// ─── Training API ──────────────────────────────────────────────────
+export const trainingApi = {
+  getAvailableDrills: (careerId: number) =>
+    api.get<Drill[]>(`/training/${careerId}/available-drills`),
+  train: (careerId: number, drillType: string, playerIds: number[]) =>
+    api.post(`/training/${careerId}/train`, { drill_type: drillType, player_ids: playerIds }),
+  getActiveBoosts: (careerId: number) =>
+    api.get<ActiveBoost[]>(`/training/${careerId}/active-boosts`),
+};
+
+// ─── Progression API ───────────────────────────────────────────────
+export const progressionApi = {
+  getStatus: (careerId: number) =>
+    api.get<ProgressionStatus>(`/progression/${careerId}/status`),
+  acceptPromotion: (careerId: number) =>
+    api.post(`/progression/${careerId}/accept-promotion`),
+  evaluateSeason: (careerId: number) =>
+    api.post(`/progression/${careerId}/evaluate-season`),
+  startNextSeason: (careerId: number) =>
+    api.post(`/progression/${careerId}/next-season`),
+  getManagerStats: (careerId: number) =>
+    api.get<ManagerStats>(`/progression/${careerId}/manager-stats`),
 };

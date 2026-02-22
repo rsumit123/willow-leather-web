@@ -13,16 +13,27 @@ import {
   Shield,
   Play,
   Target,
+  Swords,
+  Dumbbell,
+  Coffee,
+  Bell,
+  SkipForward,
+  TrendingUp,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { careerApi, seasonApi, transferApi } from '../api/client';
+import { careerApi, seasonApi, transferApi, calendarApi, notificationApi, progressionApi } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { TeamBadge } from '../components/common/TeamCard';
-import { PageHeader } from '../components/common/PageHeader';
 import { PlayoffBracket } from '../components/playoffs/PlayoffBracket';
 import { AIMatchSimulationOverlay } from '../components/dashboard/AIMatchSimulationOverlay';
 import clsx from 'clsx';
+
+const TIER_COLORS: Record<string, { text: string; bg: string; accent: string }> = {
+  district: { text: 'text-amber-400', bg: 'bg-amber-500/20', accent: 'border-amber-500/30' },
+  state: { text: 'text-blue-400', bg: 'bg-blue-500/20', accent: 'border-blue-500/30' },
+  ipl: { text: 'text-pitch-400', bg: 'bg-pitch-500/20', accent: 'border-pitch-500/30' },
+};
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -34,6 +45,33 @@ export function DashboardPage() {
   const { data: careerData, isLoading: careerLoading } = useQuery({
     queryKey: ['career', careerId],
     queryFn: () => careerApi.get(careerId!).then((r) => r.data),
+    enabled: !!careerId,
+  });
+
+  // Calendar current day
+  const { data: calendarData } = useQuery({
+    queryKey: ['calendar-current', careerId],
+    queryFn: () => calendarApi.getCurrent(careerId!).then((r) => r.data),
+    enabled: !!careerId,
+  });
+
+  // Notifications
+  const { data: notifications } = useQuery({
+    queryKey: ['notifications-preview', careerId],
+    queryFn: () => notificationApi.list(careerId!, 3).then((r) => r.data),
+    enabled: !!careerId,
+  });
+
+  const { data: unreadData } = useQuery({
+    queryKey: ['unread-count', careerId],
+    queryFn: () => notificationApi.unreadCount(careerId!).then((r) => r.data),
+    enabled: !!careerId,
+  });
+
+  // Progression status (objectives)
+  const { data: progressionStatus } = useQuery({
+    queryKey: ['progression-status', careerId],
+    queryFn: () => progressionApi.getStatus(careerId!).then((r) => r.data),
     enabled: !!careerId,
   });
 
@@ -115,7 +153,6 @@ export function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['playoff-bracket'] });
       queryClient.invalidateQueries({ queryKey: ['career'] });
       if (response.data.champion) {
-        // Season complete - refresh everything
         queryClient.invalidateQueries();
       }
     },
@@ -124,9 +161,7 @@ export function DashboardPage() {
   // Simulate next playoff match (for spectating when eliminated)
   const simulateNextPlayoffMutation = useMutation({
     mutationFn: async () => {
-      // First, ensure any needed playoff fixtures are generated
       await seasonApi.generateNextPlayoff(careerId!);
-      // Then simulate the next match
       return seasonApi.simulateNextMatch(careerId!);
     },
     onSuccess: () => {
@@ -139,19 +174,16 @@ export function DashboardPage() {
   // Simulate all remaining playoff matches
   const simulateAllPlayoffsMutation = useMutation({
     mutationFn: async () => {
-      // Keep simulating until season is complete
       let result;
-      for (let i = 0; i < 10; i++) { // Max 10 iterations (safety)
-        // Generate next playoff if needed
+      for (let i = 0; i < 10; i++) {
         const genResult = await seasonApi.generateNextPlayoff(careerId!);
         if (genResult.data.champion) {
-          return genResult; // Season complete
+          return genResult;
         }
-        // Simulate next match
         try {
           result = await seasonApi.simulateNextMatch(careerId!);
         } catch {
-          break; // No more matches
+          break;
         }
       }
       return result;
@@ -160,6 +192,16 @@ export function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['playoff-bracket'] });
       queryClient.invalidateQueries({ queryKey: ['career'] });
       queryClient.invalidateQueries({ queryKey: ['standings'] });
+    },
+  });
+
+  // Calendar advance
+  const advanceMutation = useMutation({
+    mutationFn: (skipToEvent: boolean) => calendarApi.advance(careerId!, skipToEvent),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar-current'] });
+      queryClient.invalidateQueries({ queryKey: ['career'] });
+      queryClient.invalidateQueries({ queryKey: ['next-fixture'] });
     },
   });
 
@@ -186,12 +228,9 @@ export function DashboardPage() {
       const q2Done = playoffBracket.qualifier_2?.status === 'completed';
       const finalExists = !!playoffBracket.final?.team1;
 
-      // Need to generate Q2?
       if (q1Done && elimDone && !q2Exists) {
         generateNextPlayoffMutation.mutate();
-      }
-      // Need to generate Final?
-      else if (q1Done && q2Done && !finalExists) {
+      } else if (q1Done && q2Done && !finalExists) {
         generateNextPlayoffMutation.mutate();
       }
     }
@@ -208,22 +247,22 @@ export function DashboardPage() {
     return <Loading fullScreen text="Loading..." />;
   }
 
-  // Show loading while redirecting to auction
   if (careerData?.status === 'pre_auction' || careerData?.status === 'auction') {
     return <Loading fullScreen text="Loading..." />;
   }
 
   const userTeam = careerData?.user_team;
   const userStanding = standings?.find((s) => s.team_id === userTeam?.id);
+  const tier = careerData?.tier || 'ipl';
+  const tierColors = TIER_COLORS[tier] || TIER_COLORS.ipl;
 
-  // Check playoff qualification
+  // Playoff helpers
   const qualifiedForPlayoffs = userStanding && userStanding.position <= 4;
   const isChampion = playoffBracket?.final?.winner === userTeam?.short_name;
   const isRunnerUp = playoffBracket?.final?.status === 'completed' &&
     (playoffBracket.final.team1 === userTeam?.short_name || playoffBracket.final.team2 === userTeam?.short_name) &&
     !isChampion;
 
-  // Check if user's team played in each playoff match
   const playedInQ1 = playoffBracket?.qualifier_1?.team1 === userTeam?.short_name ||
     playoffBracket?.qualifier_1?.team2 === userTeam?.short_name;
   const playedInElim = playoffBracket?.eliminator?.team1 === userTeam?.short_name ||
@@ -231,68 +270,57 @@ export function DashboardPage() {
   const playedInQ2 = playoffBracket?.qualifier_2?.team1 === userTeam?.short_name ||
     playoffBracket?.qualifier_2?.team2 === userTeam?.short_name;
 
-  // Eliminated = lost in Eliminator, or lost in Q2, or lost in Final (but not runner-up handling)
   const eliminatedInElim = playoffBracket?.eliminator?.status === 'completed' &&
-    playedInElim &&
-    playoffBracket.eliminator.winner !== userTeam?.short_name;
-
+    playedInElim && playoffBracket.eliminator.winner !== userTeam?.short_name;
   const eliminatedInQ2 = playoffBracket?.qualifier_2?.status === 'completed' &&
-    playedInQ2 &&
-    playoffBracket.qualifier_2.winner !== userTeam?.short_name;
-
-  // Lost Q1 but waiting for Q2 (not eliminated yet)
+    playedInQ2 && playoffBracket.qualifier_2.winner !== userTeam?.short_name;
   const lostQ1WaitingForQ2 = playoffBracket?.qualifier_1?.status === 'completed' &&
-    playedInQ1 &&
-    playoffBracket.qualifier_1.winner !== userTeam?.short_name &&
-    !playoffBracket?.qualifier_2?.team1; // Q2 not generated yet
+    playedInQ1 && playoffBracket.qualifier_1.winner !== userTeam?.short_name &&
+    !playoffBracket?.qualifier_2?.team1;
 
   const isEliminated = eliminatedInElim || eliminatedInQ2;
   const didNotQualify = careerData?.status === 'playoffs' && !qualifiedForPlayoffs;
-
-  // Check if there are remaining playoff matches to watch
   const playoffsComplete = playoffBracket?.final?.status === 'completed';
   const hasMorePlayoffMatches = careerData?.status === 'playoffs' && !playoffsComplete;
 
-  // Calculate AI matches before user's next match
+  // AI matches before user's next match
   const aiMatchesBeforeUserMatch = scheduledFixtures?.filter(f => {
-    // Find user's next match
     const userNextMatch = scheduledFixtures?.find(
       fix => fix.team1_id === userTeam?.id || fix.team2_id === userTeam?.id
     );
     if (!userNextMatch) return false;
-    // Get all AI matches that come before user's match (by match_number)
     return f.match_number < userNextMatch.match_number &&
-      f.team1_id !== userTeam?.id &&
-      f.team2_id !== userTeam?.id;
+      f.team1_id !== userTeam?.id && f.team2_id !== userTeam?.id;
   }) || [];
 
-  // Find user's actual next match
   const userNextMatch = scheduledFixtures?.find(
     f => f.team1_id === userTeam?.id || f.team2_id === userTeam?.id
   );
 
-  // Handler for "Next Match" button
   const handleNextMatch = () => {
     if (aiMatchesBeforeUserMatch.length > 0) {
-      // Show AI simulation overlay
       setShowAISimulation(true);
     } else if (userNextMatch) {
-      // No AI matches, go directly to user's match
       navigate(`/match/${userNextMatch.id}`);
     }
   };
 
-  // Handler when AI simulation completes
   const handleAISimulationComplete = () => {
     setShowAISimulation(false);
     queryClient.invalidateQueries({ queryKey: ['standings'] });
     queryClient.invalidateQueries({ queryKey: ['next-fixture'] });
     queryClient.invalidateQueries({ queryKey: ['scheduled-fixtures'] });
-    // Navigate to user's match
     if (userNextMatch) {
       navigate(`/match/${userNextMatch.id}`);
     }
   };
+
+  // Current day info
+  const currentDay = calendarData?.current_day;
+  const hasCalendar = calendarData?.has_calendar;
+
+  // Tier display name
+  const tierDisplayName = tier === 'district' ? 'District Cricket' : tier === 'state' ? 'State / Ranji' : 'IPL';
 
   return (
     <>
@@ -308,9 +336,87 @@ export function DashboardPage() {
         )}
       </AnimatePresence>
 
-      <PageHeader title="Dashboard" />
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
-        {/* Championship Banner */}
+      <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
+        {/* ─── Header Card ─── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card p-5 relative overflow-hidden"
+        >
+          {userTeam && (
+            <div
+              className="absolute inset-0 opacity-10"
+              style={{
+                background: `linear-gradient(135deg, ${userTeam.primary_color} 0%, transparent 60%)`,
+              }}
+            />
+          )}
+
+          <div className="relative flex items-center gap-4">
+            {userTeam && <TeamBadge team={userTeam} size="md" />}
+            <div className="flex-1">
+              <h1 className="font-display font-bold text-xl text-white">
+                {userTeam?.name}
+              </h1>
+              <div className="flex items-center gap-2 text-sm text-dark-400">
+                <span className={clsx('capitalize font-medium', tierColors.text)}>
+                  {tierDisplayName}
+                </span>
+                <span>•</span>
+                <span>Season {careerData?.current_season_number}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Date display */}
+          {currentDay && (
+            <div className="relative mt-3 pt-3 border-t border-dark-700/50 flex items-center justify-between">
+              <span className="text-sm text-dark-300">{currentDay.date}</span>
+              <span className={clsx(
+                'text-xs capitalize',
+                careerData?.status === 'playoffs' && 'text-yellow-400',
+                careerData?.status === 'post_season' && 'text-pitch-400',
+                careerData?.status === 'in_season' && 'text-dark-400',
+              )}>
+                {careerData?.status === 'post_season' ? 'Season Complete' : careerData?.status?.replace('_', ' ')}
+              </span>
+            </div>
+          )}
+
+          {/* Stats row */}
+          {userStanding && (
+            <div className="relative mt-3 pt-3 border-t border-dark-700/50 grid grid-cols-4 gap-2">
+              <div className="text-center">
+                <p className={clsx(
+                  'text-2xl font-bold',
+                  userStanding.position <= 4 ? 'text-pitch-400' : 'text-white'
+                )}>
+                  #{userStanding.position}
+                </p>
+                <p className="text-xs text-dark-400">Position</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-pitch-400">{userStanding.won}</p>
+                <p className="text-xs text-dark-400">Wins</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-ball-400">{userStanding.lost}</p>
+                <p className="text-xs text-dark-400">Losses</p>
+              </div>
+              <div className="text-center">
+                <p className={clsx(
+                  'text-2xl font-bold',
+                  (userStanding.nrr || 0) >= 0 ? 'text-pitch-400' : 'text-ball-400'
+                )}>
+                  {(userStanding.nrr || 0) >= 0 ? '+' : ''}{userStanding.nrr?.toFixed(2) || '0.00'}
+                </p>
+                <p className="text-xs text-dark-400">NRR</p>
+              </div>
+            </div>
+          )}
+        </motion.div>
+
+        {/* ─── Championship / Elimination Banners ─── */}
         {isChampion && careerData?.status === 'post_season' && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -320,16 +426,13 @@ export function DashboardPage() {
             <div className="w-20 h-20 mx-auto mb-4 rounded-3xl bg-yellow-500/20 flex items-center justify-center">
               <Crown className="w-10 h-10 text-yellow-500" />
             </div>
-            <h2 className="text-2xl font-display font-bold text-yellow-400 mb-2">
-              CHAMPIONS!
-            </h2>
+            <h2 className="text-2xl font-display font-bold text-yellow-400 mb-2">CHAMPIONS!</h2>
             <p className="text-dark-300">
-              {userTeam?.name} won the IPL Season {careerData?.current_season_number}!
+              {userTeam?.name} won the {tierDisplayName} Season {careerData?.current_season_number}!
             </p>
           </motion.div>
         )}
 
-        {/* Runner Up Banner */}
         {isRunnerUp && careerData?.status === 'post_season' && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -339,16 +442,13 @@ export function DashboardPage() {
             <div className="w-20 h-20 mx-auto mb-4 rounded-3xl bg-gray-400/20 flex items-center justify-center">
               <Trophy className="w-10 h-10 text-gray-400" />
             </div>
-            <h2 className="text-2xl font-display font-bold text-gray-300 mb-2">
-              Runner Up
-            </h2>
+            <h2 className="text-2xl font-display font-bold text-gray-300 mb-2">Runner Up</h2>
             <p className="text-dark-400">
               {userTeam?.name} finished as runner-up in Season {careerData?.current_season_number}
             </p>
           </motion.div>
         )}
 
-        {/* Lost Q1 - Waiting for Q2 Banner */}
         {lostQ1WaitingForQ2 && !isEliminated && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -358,11 +458,9 @@ export function DashboardPage() {
             <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-amber-500/20 flex items-center justify-center">
               <Calendar className="w-8 h-8 text-amber-500" />
             </div>
-            <h2 className="text-lg font-semibold text-amber-400 mb-1">
-              Waiting for Qualifier 2
-            </h2>
+            <h2 className="text-lg font-semibold text-amber-400 mb-1">Waiting for Qualifier 2</h2>
             <p className="text-dark-400 text-sm mb-3">
-              {userTeam?.short_name} lost Qualifier 1 but gets another chance! Waiting for the Eliminator to finish.
+              {userTeam?.short_name} lost Qualifier 1 but gets another chance!
             </p>
             <button
               onClick={() => simulateNextPlayoffMutation.mutate()}
@@ -374,7 +472,6 @@ export function DashboardPage() {
           </motion.div>
         )}
 
-        {/* Eliminated Banner */}
         {(isEliminated || didNotQualify) && !isChampion && !isRunnerUp && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -390,8 +487,7 @@ export function DashboardPage() {
             <p className="text-dark-400 text-sm mb-3">
               {didNotQualify
                 ? `${userTeam?.short_name} finished ${userStanding?.position}${getOrdinalSuffix(userStanding?.position || 0)} and missed the playoffs`
-                : `${userTeam?.short_name} has been knocked out. Better luck next season!`
-              }
+                : `${userTeam?.short_name} has been knocked out. Better luck next season!`}
             </p>
             {hasMorePlayoffMatches && (
               <div className="flex gap-2 justify-center">
@@ -411,91 +507,133 @@ export function DashboardPage() {
                 </button>
               </div>
             )}
-            {!hasMorePlayoffMatches && careerData?.status === 'playoffs' && (
-              <p className="text-dark-500 text-xs mt-2">
-                The tournament has concluded. Check the bracket for final results.
-              </p>
+          </motion.div>
+        )}
+
+        {/* ─── Today Card ─── */}
+        {hasCalendar && currentDay && careerData?.status === 'in_season' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className={clsx('glass-card p-4', tierColors.accent)}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="font-semibold text-white text-sm uppercase tracking-wider">Today</h2>
+              <span className="text-xs text-dark-500">{currentDay.date}</span>
+            </div>
+
+            {currentDay.day_type === 'match_day' && (
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-ball-500/20 flex items-center justify-center">
+                    <Swords className="w-5 h-5 text-ball-500" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-white">Match Day</p>
+                    {currentDay.opponent_name && (
+                      <p className="text-xs text-dark-400">vs {currentDay.opponent_name}</p>
+                    )}
+                  </div>
+                </div>
+                {currentDay.fixture_id ? (
+                  <button
+                    onClick={() => {
+                      if (aiMatchesBeforeUserMatch.length > 0) {
+                        handleNextMatch();
+                      } else {
+                        navigate(`/match/${currentDay.fixture_id}`);
+                      }
+                    }}
+                    className="btn-primary w-full flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-4 h-4" />
+                    Play Match
+                    {aiMatchesBeforeUserMatch.length > 0 && (
+                      <span className="text-xs opacity-75">
+                        ({aiMatchesBeforeUserMatch.length} AI first)
+                      </span>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleNextMatch}
+                    className="btn-primary w-full flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-4 h-4" />
+                    Next Match
+                  </button>
+                )}
+              </div>
+            )}
+
+            {currentDay.day_type === 'training' && (
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                    <Dumbbell className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-white">Training Day</p>
+                    <p className="text-xs text-dark-400">Choose drills for your squad</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => navigate('/training')}
+                    className="btn-primary flex-1 flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Dumbbell className="w-4 h-4" />
+                    Train Squad
+                  </button>
+                  <button
+                    onClick={() => advanceMutation.mutate(true)}
+                    disabled={advanceMutation.isPending}
+                    className="btn-secondary flex items-center justify-center gap-2 text-sm"
+                  >
+                    <SkipForward className="w-4 h-4" />
+                    Skip
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {(currentDay.day_type === 'rest' || currentDay.day_type === 'travel') && (
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={clsx(
+                    'w-10 h-10 rounded-xl flex items-center justify-center',
+                    currentDay.day_type === 'rest' ? 'bg-dark-700/50' : 'bg-amber-500/20',
+                  )}>
+                    {currentDay.day_type === 'rest' ? (
+                      <Coffee className="w-5 h-5 text-dark-400" />
+                    ) : (
+                      <ArrowRight className="w-5 h-5 text-amber-400" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-white">
+                      {currentDay.day_type === 'rest' ? 'Rest Day' : 'Travel Day'}
+                    </p>
+                    <p className="text-xs text-dark-400">
+                      {currentDay.day_type === 'rest' ? 'Players recover fitness' : 'Traveling to next venue'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => advanceMutation.mutate(true)}
+                  disabled={advanceMutation.isPending}
+                  className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
+                >
+                  <SkipForward className="w-4 h-4" />
+                  {advanceMutation.isPending ? 'Advancing...' : 'Skip to Next Event'}
+                </button>
+              </div>
             )}
           </motion.div>
         )}
 
-        {/* Header card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-card p-5 relative overflow-hidden"
-        >
-          {/* Background gradient */}
-          {userTeam && (
-            <div
-              className="absolute inset-0 opacity-10"
-              style={{
-                background: `linear-gradient(135deg, ${userTeam.primary_color} 0%, transparent 60%)`,
-              }}
-            />
-          )}
-
-          <div className="relative flex items-center gap-4">
-            {userTeam && <TeamBadge team={userTeam} size="md" />}
-
-            <div className="flex-1">
-              <h1 className="font-display font-bold text-xl text-white">
-                {userTeam?.name}
-              </h1>
-              <p className="text-dark-400 text-sm">
-                Season {careerData?.current_season_number} •{' '}
-                <span className={clsx(
-                  'capitalize',
-                  careerData?.status === 'playoffs' && 'text-yellow-400',
-                  careerData?.status === 'post_season' && 'text-pitch-400'
-                )}>
-                  {careerData?.status === 'post_season' ? 'Season Complete' : careerData?.status?.replace('_', ' ')}
-                </span>
-              </p>
-            </div>
-          </div>
-
-          {/* Stats row */}
-          {userStanding && (
-            <div className="relative mt-4 pt-4 border-t border-dark-700/50 grid grid-cols-4 gap-2">
-              <div className="text-center">
-                <p className={clsx(
-                  'text-2xl font-bold',
-                  userStanding.position <= 4 ? 'text-pitch-400' : 'text-white'
-                )}>
-                  #{userStanding.position}
-                </p>
-                <p className="text-xs text-dark-400">Position</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-pitch-400">
-                  {userStanding.won}
-                </p>
-                <p className="text-xs text-dark-400">Wins</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-ball-400">
-                  {userStanding.lost}
-                </p>
-                <p className="text-xs text-dark-400">Losses</p>
-              </div>
-              <div className="text-center">
-                <p
-                  className={clsx(
-                    'text-2xl font-bold',
-                    (userStanding.nrr || 0) >= 0 ? 'text-pitch-400' : 'text-ball-400'
-                  )}
-                >
-                  {(userStanding.nrr || 0) >= 0 ? '+' : ''}
-                  {userStanding.nrr?.toFixed(2) || '0.00'}
-                </p>
-                <p className="text-xs text-dark-400">NRR</p>
-              </div>
-            </div>
-          )}
-        </motion.div>
-
-        {/* Pre-season actions */}
+        {/* ─── Pre-season actions ─── */}
         {careerData?.status === 'pre_season' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -540,7 +678,103 @@ export function DashboardPage() {
           </motion.div>
         )}
 
-        {/* Playoff Bracket */}
+        {/* ─── Inbox Preview ─── */}
+        {notifications && notifications.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="glass-card overflow-hidden"
+          >
+            <Link
+              to="/inbox"
+              className="px-4 py-3 border-b border-dark-700/50 flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <Bell className="w-4 h-4 text-dark-400" />
+                <h2 className="font-semibold text-white text-sm">Inbox</h2>
+                {(unreadData?.count || 0) > 0 && (
+                  <span className="text-xs bg-ball-500 text-white px-1.5 py-0.5 rounded-full font-bold">
+                    {unreadData!.count}
+                  </span>
+                )}
+              </div>
+              <ChevronRight className="w-4 h-4 text-dark-500" />
+            </Link>
+            <div className="divide-y divide-dark-800/50">
+              {notifications.slice(0, 3).map((n) => (
+                <Link
+                  key={n.id}
+                  to={n.action_url || '/inbox'}
+                  className={clsx(
+                    'px-4 py-3 flex items-start gap-3 hover:bg-dark-800/30 transition-colors',
+                    !n.read && 'bg-dark-850/50',
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className={clsx(
+                      'text-sm',
+                      !n.read ? 'text-white font-medium' : 'text-dark-300',
+                    )}>
+                      {n.title}
+                    </p>
+                    <p className="text-xs text-dark-400 truncate">{n.body}</p>
+                  </div>
+                  {!n.read && <span className="w-2 h-2 rounded-full bg-pitch-500 mt-1 flex-shrink-0" />}
+                </Link>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ─── Season Objective ─── */}
+        {progressionStatus && progressionStatus.objectives.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <Link
+              to="/progression"
+              className={clsx('glass-card p-4 block hover:border-dark-500 transition-colors', tierColors.accent)}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="w-4 h-4 text-amber-400" />
+                <h3 className="text-sm font-semibold text-white">Season Objective</h3>
+                <ChevronRight className="w-4 h-4 text-dark-500 ml-auto" />
+              </div>
+              {progressionStatus.objectives.map((obj) => (
+                <div key={obj.id} className="mb-1 last:mb-0">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className={clsx(
+                      obj.achieved ? 'text-pitch-400' : 'text-dark-300',
+                    )}>
+                      {obj.description}
+                    </span>
+                    {obj.achieved && <span className="text-pitch-400 font-medium">Done</span>}
+                  </div>
+                </div>
+              ))}
+              {/* Reputation bar */}
+              <div className="mt-2 pt-2 border-t border-dark-700/50">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-dark-400">Reputation</span>
+                  <span className="text-amber-400 font-medium">
+                    {progressionStatus.reputation_title} ({progressionStatus.reputation})
+                  </span>
+                </div>
+                <div className="h-1.5 bg-dark-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all"
+                    style={{ width: `${progressionStatus.reputation}%` }}
+                  />
+                </div>
+              </div>
+            </Link>
+          </motion.div>
+        )}
+
+        {/* ─── Playoff Bracket ─── */}
         {(careerData?.status === 'playoffs' || careerData?.status === 'post_season') && playoffBracket && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -557,7 +791,6 @@ export function DashboardPage() {
                 <span className="badge badge-green">Qualified</span>
               )}
             </div>
-
             <PlayoffBracket
               bracket={playoffBracket}
               userTeamShortName={userTeam?.short_name}
@@ -566,8 +799,8 @@ export function DashboardPage() {
           </motion.div>
         )}
 
-        {/* Next match (League phase) */}
-        {nextFixture && careerData?.status === 'in_season' && (
+        {/* ─── Next Match (fallback for non-calendar flow) ─── */}
+        {nextFixture && careerData?.status === 'in_season' && !hasCalendar && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -578,40 +811,28 @@ export function DashboardPage() {
               <h2 className="font-semibold text-white">Next Match</h2>
               <span className="badge badge-yellow">Match #{nextFixture.match_number}</span>
             </div>
-
             <div className="flex items-center justify-between">
               <div className="text-center flex-1">
-                <p
-                  className={clsx(
-                    'font-display font-bold text-2xl',
-                    nextFixture.team1_id === userTeam?.id && 'text-pitch-400'
-                  )}
-                >
+                <p className={clsx(
+                  'font-display font-bold text-2xl',
+                  nextFixture.team1_id === userTeam?.id && 'text-pitch-400'
+                )}>
                   {nextFixture.team1_name}
                 </p>
               </div>
-
               <div className="px-4 py-2 bg-dark-800 rounded-lg">
                 <span className="text-dark-400 text-sm">VS</span>
               </div>
-
               <div className="text-center flex-1">
-                <p
-                  className={clsx(
-                    'font-display font-bold text-2xl',
-                    nextFixture.team2_id === userTeam?.id && 'text-pitch-400'
-                  )}
-                >
+                <p className={clsx(
+                  'font-display font-bold text-2xl',
+                  nextFixture.team2_id === userTeam?.id && 'text-pitch-400'
+                )}>
                   {nextFixture.team2_name}
                 </p>
               </div>
             </div>
-
-            <p className="text-center text-dark-400 text-sm mt-3">
-              {nextFixture.venue}
-            </p>
-
-            {/* Show "Next Match" button if there are AI matches before user's match */}
+            <p className="text-center text-dark-400 text-sm mt-3">{nextFixture.venue}</p>
             {aiMatchesBeforeUserMatch.length > 0 ? (
               <button
                 onClick={handleNextMatch}
@@ -643,7 +864,7 @@ export function DashboardPage() {
           </motion.div>
         )}
 
-        {/* Post-season - Transfer Window CTA */}
+        {/* ─── Post-season actions ─── */}
         {careerData?.status === 'post_season' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -652,24 +873,42 @@ export function DashboardPage() {
             className="glass-card p-5 text-center"
           >
             <h2 className="text-lg font-semibold mb-2">Season Complete</h2>
-            <p className="text-dark-400 text-sm mb-4">
-              Open the transfer window to retain players and hold a mini-auction for Season {(careerData?.current_season_number || 1) + 1}.
-            </p>
-            <button
-              onClick={() => {
-                transferApi.start(careerId!).then(() => {
-                  queryClient.invalidateQueries({ queryKey: ['career'] });
-                  navigate('/transfer-window');
-                });
-              }}
-              className="btn-primary flex items-center justify-center gap-2 mx-auto"
-            >
-              Transfer Window <ArrowRight className="w-4 h-4" />
-            </button>
+            {tier === 'district' ? (
+              <>
+                <p className="text-dark-400 text-sm mb-4">
+                  {isChampion
+                    ? 'You won the District Cup! Check your inbox for a promotion invitation.'
+                    : 'Check the Progression page for season evaluation.'}
+                </p>
+                <button
+                  onClick={() => navigate('/progression')}
+                  className="btn-primary flex items-center justify-center gap-2 mx-auto"
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  View Progression
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-dark-400 text-sm mb-4">
+                  Open the transfer window to retain players and hold a mini-auction for Season {(careerData?.current_season_number || 1) + 1}.
+                </p>
+                <button
+                  onClick={() => {
+                    transferApi.start(careerId!).then(() => {
+                      queryClient.invalidateQueries({ queryKey: ['career'] });
+                      navigate('/transfer-window');
+                    });
+                  }}
+                  className="btn-primary flex items-center justify-center gap-2 mx-auto"
+                >
+                  Transfer Window <ArrowRight className="w-4 h-4" />
+                </button>
+              </>
+            )}
           </motion.div>
         )}
 
-        {/* Transfer Window - redirect if already in transfer */}
         {careerData?.status === 'transfer_window' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -690,7 +929,7 @@ export function DashboardPage() {
           </motion.div>
         )}
 
-        {/* Quick links */}
+        {/* ─── Quick Links ─── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -742,7 +981,7 @@ export function DashboardPage() {
           )}
         </motion.div>
 
-        {/* Leaderboards Preview */}
+        {/* ─── Leaderboards Preview ─── */}
         {leaderboards && (leaderboards.orange_cap.length > 0 || leaderboards.purple_cap.length > 0) && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -750,11 +989,7 @@ export function DashboardPage() {
             transition={{ delay: 0.25 }}
             className="grid grid-cols-2 gap-3"
           >
-            {/* Orange Cap Preview */}
-            <Link
-              to="/leaderboards"
-              className="glass-card p-4 hover:border-orange-500/30 transition-colors"
-            >
+            <Link to="/leaderboards" className="glass-card p-4 hover:border-orange-500/30 transition-colors">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
@@ -788,11 +1023,7 @@ export function DashboardPage() {
               )}
             </Link>
 
-            {/* Purple Cap Preview */}
-            <Link
-              to="/leaderboards"
-              className="glass-card p-4 hover:border-purple-500/30 transition-colors"
-            >
+            <Link to="/leaderboards" className="glass-card p-4 hover:border-purple-500/30 transition-colors">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
@@ -828,7 +1059,7 @@ export function DashboardPage() {
           </motion.div>
         )}
 
-        {/* Top of table */}
+        {/* ─── Mini Standings ─── */}
         {standings && standings.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -838,11 +1069,8 @@ export function DashboardPage() {
           >
             <div className="px-4 py-3 border-b border-dark-700/50 flex items-center justify-between">
               <h2 className="font-semibold text-white">Standings</h2>
-              <Link to="/standings" className="text-pitch-400 text-sm">
-                View all
-              </Link>
+              <Link to="/standings" className="text-pitch-400 text-sm">View all</Link>
             </div>
-
             <div className="divide-y divide-dark-800/50">
               {standings.slice(0, 4).map((team, index) => (
                 <div
@@ -852,34 +1080,26 @@ export function DashboardPage() {
                     team.team_id === userTeam?.id && 'bg-pitch-500/10'
                   )}
                 >
-                  <span
-                    className={clsx(
-                      'w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold',
-                      index === 0 && 'bg-yellow-500/20 text-yellow-400',
-                      index === 1 && 'bg-gray-400/20 text-gray-400',
-                      index === 2 && 'bg-amber-600/20 text-amber-500',
-                      index >= 3 && 'bg-dark-700 text-dark-400'
-                    )}
-                  >
+                  <span className={clsx(
+                    'w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold',
+                    index === 0 && 'bg-yellow-500/20 text-yellow-400',
+                    index === 1 && 'bg-gray-400/20 text-gray-400',
+                    index === 2 && 'bg-amber-600/20 text-amber-500',
+                    index >= 3 && 'bg-dark-700 text-dark-400'
+                  )}>
                     {team.position}
                   </span>
-                  <span
-                    className={clsx(
-                      'font-medium flex-1',
-                      team.team_id === userTeam?.id && 'text-pitch-400'
-                    )}
-                  >
+                  <span className={clsx(
+                    'font-medium flex-1',
+                    team.team_id === userTeam?.id && 'text-pitch-400'
+                  )}>
                     {team.team_short_name}
                   </span>
-                  <span className="text-dark-400 text-sm w-8 text-center">
-                    {team.played}
-                  </span>
+                  <span className="text-dark-400 text-sm w-8 text-center">{team.played}</span>
                   <span className="font-bold w-8 text-center">{team.points}</span>
                 </div>
               ))}
             </div>
-
-            {/* Playoff qualification line */}
             {careerData?.status === 'in_season' && (
               <div className="px-4 py-2 bg-dark-800/50 border-t border-dashed border-pitch-500/30">
                 <p className="text-xs text-center text-pitch-400">

@@ -302,7 +302,19 @@ export function HomePage() {
                           }}
                           className="px-4 py-2 bg-dark-800/50 hover:bg-dark-700 rounded-lg text-left transition-all hover:scale-105 border border-dark-700/50 hover:border-pitch-500/30"
                         >
-                          <p className="font-medium text-white text-sm">{career.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-white text-sm">{career.name}</p>
+                            {career.tier && (
+                              <span className={clsx(
+                                'text-[10px] px-1.5 py-0.5 rounded-full uppercase font-medium',
+                                career.tier === 'district' && 'bg-amber-500/20 text-amber-400',
+                                career.tier === 'state' && 'bg-blue-500/20 text-blue-400',
+                                career.tier === 'ipl' && 'bg-pitch-500/20 text-pitch-400',
+                              )}>
+                                {career.tier}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-dark-400">
                             S{career.current_season_number} • {career.user_team?.short_name || 'Team'}
                           </p>

@@ -11,9 +11,10 @@ interface PageHeaderProps {
   showBack?: boolean;
   backTo?: string;
   showBrand?: boolean;
+  action?: React.ReactNode;
 }
 
-export function PageHeader({ title, showBack = false, backTo, showBrand = true }: PageHeaderProps) {
+export function PageHeader({ title, showBack = false, backTo, showBrand = true, action }: PageHeaderProps) {
   const navigate = useNavigate();
   const { clearGame, career } = useGameStore();
   const { logout } = useAuthStore();
@@ -94,6 +95,8 @@ export function PageHeader({ title, showBack = false, backTo, showBrand = true }
               {career.user_team.short_name}
             </div>
           )}
+
+          {action}
 
           <UserMenu />
 
