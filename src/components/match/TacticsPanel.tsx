@@ -153,7 +153,7 @@ export function TacticsPanel({
                       }}
                       disabled={isRestricted}
                       className={clsx(
-                        'flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl border transition-all duration-150 min-w-[76px] flex-shrink-0 relative',
+                        'flex flex-col items-center gap-0.5 px-3 pt-4 pb-2 rounded-xl border transition-all duration-150 min-w-[76px] flex-shrink-0 relative',
                         diffBg,
                         isRestricted
                           ? 'border-red-500/40 opacity-50 cursor-not-allowed'

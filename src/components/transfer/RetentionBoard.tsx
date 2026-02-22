@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, Globe, Star, AlertCircle } from 'lucide-react';
+import { Check, Globe, Star } from 'lucide-react';
 import type { RetentionCandidate } from '../../api/client';
 import { FormBadge } from '../common/FormBadge';
 import { formatPrice } from '../../utils/format';
@@ -28,9 +28,6 @@ const ROLE_SHORT: Record<string, string> = {
 
 export function RetentionBoard({ candidates, onConfirm, isSubmitting }: RetentionBoardProps) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
-
-  const retainable = candidates.filter((c) => c.retention_slot <= 4);
-  const nonRetainable = candidates.filter((c) => c.retention_slot > 4);
 
   const togglePlayer = (playerId: number) => {
     setSelected((prev) => {
@@ -77,12 +74,12 @@ export function RetentionBoard({ candidates, onConfirm, isSubmitting }: Retentio
         </div>
       </div>
 
-      {/* Retainable players */}
+      {/* All squad players — select up to 4 to retain */}
       <div className="space-y-2">
-        {retainable.map((candidate, index) => {
+        {candidates.map((candidate) => {
           const isSelected = selected.has(candidate.player_id);
           const selectionIndex = Array.from(selected).indexOf(candidate.player_id);
-          const slotPrice = isSelected ? PRICES[selectionIndex] : PRICES[index];
+          const slotPrice = isSelected ? PRICES[selectionIndex] : 0;
 
           return (
             <motion.button
@@ -133,44 +130,20 @@ export function RetentionBoard({ candidates, onConfirm, isSubmitting }: Retentio
                 </div>
               </div>
 
-              {/* Price */}
+              {/* Price — only show when selected */}
               <div className="text-right flex-shrink-0 w-14">
-                <span className={clsx(
-                  'text-xs font-semibold',
-                  isSelected ? 'text-pitch-400' : 'text-dark-400'
-                )}>
-                  {formatPrice(slotPrice)}
-                </span>
+                {isSelected ? (
+                  <span className="text-xs font-semibold text-pitch-400">
+                    {formatPrice(slotPrice)}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-dark-500">—</span>
+                )}
               </div>
             </motion.button>
           );
         })}
       </div>
-
-      {/* Non-retainable players (will be released) */}
-      {nonRetainable.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs text-dark-500">
-            <AlertCircle className="w-3 h-3" />
-            <span>These players will be released to the auction pool</span>
-          </div>
-          {nonRetainable.map((player) => (
-            <div
-              key={player.player_id}
-              className="w-full p-2 rounded-lg border border-dark-800 bg-dark-900/50 flex items-center gap-3 opacity-50"
-            >
-              <div className="w-6" />
-              <div className="flex-1 min-w-0">
-                <span className="text-sm text-dark-300 truncate">{player.player_name}</span>
-                <span className={clsx('text-[10px] ml-2', ROLE_COLORS[player.role])}>
-                  {ROLE_SHORT[player.role] || player.role}
-                </span>
-              </div>
-              <span className="text-xs text-dark-500">{player.overall_rating}</span>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Confirm button */}
       <button

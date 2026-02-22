@@ -150,9 +150,9 @@ function SortableBattingItem({
     >
       <div
         className={clsx(
-          'flex items-center gap-2 p-3 rounded-xl border transition-all',
+          'flex items-center gap-2 p-3 rounded-xl border transition-all min-w-0',
           isDragging
-            ? 'bg-pitch-500/20 border-pitch-500 shadow-xl shadow-pitch-500/25 scale-[1.02]'
+            ? 'bg-pitch-500/20 border-pitch-500 shadow-xl shadow-pitch-500/25 scale-[1.01]'
             : 'bg-dark-800/50 border-dark-700/50 hover:border-dark-600'
         )}
       >
@@ -544,7 +544,7 @@ export function PlayingXIPage() {
         backTo={returnTo || "/dashboard"}
       />
 
-      <div className="max-w-4xl mx-auto px-4 py-4 pb-24">
+      <div className="max-w-4xl mx-auto px-4 py-4 pb-24 overflow-hidden">
         {/* Two column layout on desktop, stacked on mobile */}
         <div className="grid lg:grid-cols-2 gap-4">
 
