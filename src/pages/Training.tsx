@@ -15,7 +15,7 @@ import { trainingApi, careerApi } from '../api/client';
 import type { Drill } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
-import { PageHeader } from '../components/common/PageHeader';
+import { SubPageHeader } from '../components/common/SubPageHeader';
 import clsx from 'clsx';
 
 const DRILL_ICONS: Record<string, typeof Dumbbell> = {
@@ -55,13 +55,16 @@ export function TrainingPage() {
   });
 
   // Train mutation
+  const [trainError, setTrainError] = useState<string | null>(null);
   const trainMutation = useMutation({
     mutationFn: () => trainingApi.train(careerId!, selectedDrill!.drill_type, selectedPlayerIds),
     onSuccess: () => {
+      setTrainError(null);
       setTrainingComplete(true);
       queryClient.invalidateQueries({ queryKey: ['calendar-current'] });
       queryClient.invalidateQueries({ queryKey: ['active-boosts'] });
     },
+    onError: () => setTrainError('Training failed. Please try again.'),
   });
 
   const togglePlayer = (id: number) => {
@@ -79,7 +82,7 @@ export function TrainingPage() {
   if (trainingComplete) {
     return (
       <>
-        <PageHeader title="Training" />
+        <SubPageHeader title="Training" showBack backTo="/dashboard" />
         <div className="max-w-lg mx-auto px-4 py-12 text-center">
           <motion.div
             initial={{ scale: 0.5, opacity: 0 }}
@@ -107,7 +110,7 @@ export function TrainingPage() {
   if (selectedDrill && squad) {
     return (
       <>
-        <PageHeader title={selectedDrill.display_name} />
+        <SubPageHeader title={selectedDrill.display_name} showBack backTo="/dashboard" />
         <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
           <div className="glass-card p-4">
             <p className="text-sm text-dark-300">{selectedDrill.description}</p>
@@ -158,8 +161,15 @@ export function TrainingPage() {
             })}
           </div>
 
+          {/* Error banner */}
+          {trainError && (
+            <div className="bg-ball-500/10 border border-ball-500/20 rounded-lg p-3 text-sm text-ball-400">
+              {trainError}
+            </div>
+          )}
+
           {/* Start Training */}
-          <div className="fixed bottom-0 left-0 right-0 bg-dark-950/90 backdrop-blur-lg border-t border-dark-800 safe-bottom">
+          <div className="fixed bottom-16 left-0 right-0 bg-dark-950/90 backdrop-blur-lg border-t border-dark-800 z-50">
             <div className="max-w-lg mx-auto px-4 py-4">
               <button
                 onClick={() => trainMutation.mutate()}
@@ -188,7 +198,7 @@ export function TrainingPage() {
   // Drill selection screen
   return (
     <>
-      <PageHeader title="Training Center" />
+      <SubPageHeader title="Training Center" showBack backTo="/dashboard" />
       <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
         <p className="text-sm text-dark-400">
           Choose a drill for today. Training boosts last for the next 2 matches.

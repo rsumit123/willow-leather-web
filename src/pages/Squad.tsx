@@ -6,7 +6,7 @@ import type { ActiveBoost } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { PlayerCard } from '../components/common/PlayerCard';
-import { PageHeader } from '../components/common/PageHeader';
+import { SubPageHeader } from '../components/common/SubPageHeader';
 import { useState } from 'react';
 import clsx from 'clsx';
 
@@ -52,7 +52,7 @@ export function SquadPage() {
 
   return (
     <>
-      <PageHeader title="Squad" showBack backTo="/dashboard" />
+      <SubPageHeader title="Squad" showBack backTo="/dashboard" />
       <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
       {/* Header */}
       <div className="glass-card p-5">
@@ -148,7 +148,7 @@ export function SquadPage() {
                     className="inline-flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full"
                   >
                     <Zap className="w-2.5 h-2.5" />
-                    +{boost.boost_amount} {boost.boost_attribute} ({boost.matches_remaining}m left)
+                    +{boost.boost_amount} {boost.boost_attribute} ({boost.matches_remaining} match{boost.matches_remaining !== 1 ? 'es' : ''} left)
                   </span>
                 ))}
               </div>

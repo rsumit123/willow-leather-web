@@ -16,7 +16,7 @@ import { calendarApi } from '../api/client';
 import type { GameDay } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
-import { PageHeader } from '../components/common/PageHeader';
+import { SubPageHeader } from '../components/common/SubPageHeader';
 import clsx from 'clsx';
 
 const DAY_TYPE_CONFIG: Record<string, { icon: typeof Swords; color: string; bgColor: string; label: string }> = {
@@ -96,7 +96,7 @@ export function CalendarPage() {
   if (!calendarData?.has_calendar) {
     return (
       <>
-        <PageHeader title="Calendar" />
+        <SubPageHeader title="Calendar" showBack backTo="/dashboard" />
         <div className="max-w-lg mx-auto px-4 py-12 text-center">
           <CalendarIcon className="w-16 h-16 text-dark-600 mx-auto mb-4" />
           <h2 className="text-lg font-semibold text-white mb-2">No Calendar Yet</h2>
@@ -110,7 +110,7 @@ export function CalendarPage() {
 
   return (
     <>
-      <PageHeader title="Calendar" />
+      <SubPageHeader title="Calendar" showBack backTo="/dashboard" />
       <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
         {/* Month Navigation */}
         <div className="flex items-center justify-between">

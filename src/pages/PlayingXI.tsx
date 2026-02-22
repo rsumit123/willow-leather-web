@@ -19,7 +19,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { careerApi, type Player } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
-import { PageHeader } from '../components/common/PageHeader';
+import { SubPageHeader } from '../components/common/SubPageHeader';
 import { TraitBadges } from '../components/common/TraitBadge';
 import { IntentBadge } from '../components/common/IntentBadge';
 import { FormBadge } from '../components/common/FormBadge';
@@ -538,7 +538,7 @@ export function PlayingXIPage() {
 
   return (
     <>
-      <PageHeader
+      <SubPageHeader
         title={isPreMatch ? "Confirm Playing XI" : "Playing XI"}
         showBack
         backTo={returnTo || "/dashboard"}
@@ -702,7 +702,7 @@ export function PlayingXIPage() {
         </div>
 
         {/* Fixed bottom confirm button */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-dark-950 via-dark-950 to-transparent">
+        <div className="fixed bottom-16 left-0 right-0 p-4 bg-gradient-to-t from-dark-950 via-dark-950 to-transparent z-50">
           <div className="max-w-4xl mx-auto">
             <button
               onClick={() => setXIMutation.mutate()}

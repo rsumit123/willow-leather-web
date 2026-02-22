@@ -13,7 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { progressionApi } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
-import { PageHeader } from '../components/common/PageHeader';
+import { SubPageHeader } from '../components/common/SubPageHeader';
 import clsx from 'clsx';
 
 const TIER_INFO = [
@@ -64,7 +64,7 @@ export function ProgressionPage() {
 
   return (
     <>
-      <PageHeader title="Career Progression" />
+      <SubPageHeader title="Career Progression" showBack backTo="/dashboard" />
       <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
         {/* Tier Ladder */}
         <div>

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { seasonApi } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
-import { PageHeader } from '../components/common/PageHeader';
+import { SubPageHeader } from '../components/common/SubPageHeader';
 import clsx from 'clsx';
 
 export function StandingsPage() {
@@ -22,7 +22,7 @@ export function StandingsPage() {
 
   return (
     <>
-      <PageHeader title="League Table" showBack backTo="/dashboard" />
+      <SubPageHeader title="League Table" showBack backTo="/dashboard" />
       <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">

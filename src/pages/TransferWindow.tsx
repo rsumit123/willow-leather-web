@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { transferApi, type AIRetentionEntry } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
-import { PageHeader } from '../components/common/PageHeader';
+import { SubPageHeader } from '../components/common/SubPageHeader';
 import { RetentionBoard } from '../components/transfer/RetentionBoard';
 import { AIRetentionReveal } from '../components/transfer/AIRetentionReveal';
 import clsx from 'clsx';
@@ -108,7 +108,7 @@ export function TransferWindowPage() {
 
   return (
     <>
-      <PageHeader title="Transfer Window" backTo="/dashboard" />
+      <SubPageHeader title="Transfer Window" showBack backTo="/dashboard" />
       <div className="max-w-lg mx-auto px-4 py-6">
         {/* Step indicator */}
         <div className="flex items-center justify-center gap-2 mb-6">

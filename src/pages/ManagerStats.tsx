@@ -1,8 +1,10 @@
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Trophy,
   Target,
   Swords,
+  ArrowRight,
   BarChart3,
   Star,
   Crown,
@@ -12,7 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { progressionApi } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
-import { PageHeader } from '../components/common/PageHeader';
+import { SubPageHeader } from '../components/common/SubPageHeader';
 import clsx from 'clsx';
 
 const TIER_BADGE: Record<string, { color: string; bgColor: string }> = {
@@ -22,6 +24,7 @@ const TIER_BADGE: Record<string, { color: string; bgColor: string }> = {
 };
 
 export function ManagerStatsPage() {
+  const navigate = useNavigate();
   const { careerId } = useGameStore();
 
   const { data: stats, isLoading } = useQuery({
@@ -36,7 +39,7 @@ export function ManagerStatsPage() {
 
   return (
     <>
-      <PageHeader title="Manager Stats" />
+      <SubPageHeader title="Manager Stats" showBack backTo="/progression" />
       <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
         {/* Profile Card */}
         <motion.div
@@ -143,6 +146,23 @@ export function ManagerStatsPage() {
             })}
           </div>
         </motion.div>
+
+        {/* Navigation */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => navigate('/progression')}
+            className="btn-secondary flex-1 flex items-center justify-center gap-2"
+          >
+            <ArrowRight className="w-4 h-4" />
+            Progression
+          </button>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="btn-primary flex-1 flex items-center justify-center gap-2"
+          >
+            Dashboard
+          </button>
+        </div>
       </div>
     </>
   );

@@ -118,6 +118,13 @@ export function DashboardPage() {
     enabled: !!careerId && (careerData?.status === 'pre_season' || careerData?.status === 'in_season'),
   });
 
+  // Squad registration (state tier needs 15 from 25)
+  const { data: squadRegistration } = useQuery({
+    queryKey: ['squad-registration', careerId],
+    queryFn: () => careerApi.getSquadRegistration(careerId!).then((r) => r.data),
+    enabled: !!careerId && careerData?.status === 'pre_season' && careerData?.tier === 'state',
+  });
+
   // Get leaderboards for preview cards
   const { data: leaderboards } = useQuery({
     queryKey: ['leaderboards', careerId],
@@ -203,6 +210,49 @@ export function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['career'] });
       queryClient.invalidateQueries({ queryKey: ['next-fixture'] });
     },
+  });
+
+  // Season evaluation
+  const [evalResult, setEvalResult] = useState<{
+    result: string;
+    promotion_available: boolean;
+    sacked: boolean;
+    reputation_change: number;
+    new_reputation: number;
+    position: number;
+    is_champion: boolean;
+    objectives_met: string[];
+  } | null>(null);
+  const [evalError, setEvalError] = useState<string | null>(null);
+
+  const evaluateSeasonMutation = useMutation({
+    mutationFn: () => progressionApi.evaluateSeason(careerId!),
+    onSuccess: (response) => {
+      setEvalResult(response.data);
+      queryClient.invalidateQueries({ queryKey: ['career'] });
+      queryClient.invalidateQueries({ queryKey: ['progression-status'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['unread-count'] });
+    },
+    onError: () => setEvalError('Failed to evaluate season. Please try again.'),
+  });
+
+  const acceptPromotionMutation = useMutation({
+    mutationFn: () => progressionApi.acceptPromotion(careerId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      setEvalResult(null);
+    },
+    onError: () => setEvalError('Failed to accept promotion. Please try again.'),
+  });
+
+  const startNextSeasonMutation = useMutation({
+    mutationFn: () => progressionApi.startNextSeason(careerId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      setEvalResult(null);
+    },
+    onError: () => setEvalError('Failed to start next season. Please try again.'),
   });
 
   // Update career store when data loads
@@ -630,6 +680,28 @@ export function DashboardPage() {
                 </button>
               </div>
             )}
+
+            {currentDay.day_type === 'event' && (
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                    <Calendar className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-white">Event Day</p>
+                    <p className="text-xs text-dark-400">{currentDay.event_description || 'Special event'}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => advanceMutation.mutate(true)}
+                  disabled={advanceMutation.isPending}
+                  className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
+                >
+                  <SkipForward className="w-4 h-4" />
+                  {advanceMutation.isPending ? 'Advancing...' : 'Skip to Next Event'}
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -641,7 +713,24 @@ export function DashboardPage() {
             transition={{ delay: 0.1 }}
             className="glass-card p-5 text-center"
           >
-            {playingXI?.is_set ? (
+            {/* State tier: squad registration gate */}
+            {tier === 'state' && squadRegistration && !squadRegistration.is_complete ? (
+              <>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-blue-500/20 flex items-center justify-center">
+                  <Users className="w-8 h-8 text-blue-400" />
+                </div>
+                <h2 className="text-lg font-semibold mb-2">Register Tournament Squad</h2>
+                <p className="text-dark-400 text-sm mb-4">
+                  Select {squadRegistration.max_allowed} players from your {squad?.total_players || 25} to register for the State Tournament.
+                </p>
+                <button
+                  onClick={() => navigate('/squad-registration')}
+                  className="btn-primary"
+                >
+                  Register Squad
+                </button>
+              </>
+            ) : playingXI?.is_set ? (
               <>
                 <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-pitch-500/20 flex items-center justify-center">
                   <Calendar className="w-8 h-8 text-pitch-500" />
@@ -870,41 +959,142 @@ export function DashboardPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="glass-card p-5 text-center"
+            className="glass-card p-5"
           >
-            <h2 className="text-lg font-semibold mb-2">Season Complete</h2>
-            {tier === 'district' ? (
-              <>
+            {/* Error banner */}
+            {evalError && (
+              <div className="bg-ball-500/10 border border-ball-500/20 rounded-lg p-3 mb-4 text-sm text-ball-400">
+                {evalError}
+              </div>
+            )}
+
+            {/* Game Over */}
+            {(evalResult?.sacked || careerData?.game_over) ? (
+              <div className="text-center">
+                <div className="w-14 h-14 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-3">
+                  <XCircle className="w-7 h-7 text-red-400" />
+                </div>
+                <h2 className="text-lg font-semibold text-white mb-1">Career Over</h2>
                 <p className="text-dark-400 text-sm mb-4">
-                  {isChampion
-                    ? 'You won the District Cup! Check your inbox for a promotion invitation.'
-                    : 'Check the Progression page for season evaluation.'}
+                  The board has decided to part ways with you.
+                </p>
+                <div className="flex gap-3 justify-center">
+                  <button
+                    onClick={() => navigate('/manager-stats')}
+                    className="btn-secondary flex items-center gap-2"
+                  >
+                    View Stats
+                  </button>
+                  <button
+                    onClick={() => navigate('/')}
+                    className="btn-primary flex items-center gap-2"
+                  >
+                    Main Menu
+                  </button>
+                </div>
+              </div>
+
+            /* Step 1: Not evaluated yet — show "Evaluate Season" */
+            ) : !evalResult ? (
+              <div className="text-center">
+                <div className="w-14 h-14 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-3">
+                  <Trophy className="w-7 h-7 text-amber-400" />
+                </div>
+                <h2 className="text-lg font-semibold text-white mb-1">Season Complete</h2>
+                <p className="text-dark-400 text-sm mb-4">
+                  {isChampion ? 'Congratulations, Champion!' : 'The season is over.'} Evaluate your performance to see what comes next.
                 </p>
                 <button
-                  onClick={() => navigate('/progression')}
+                  onClick={() => evaluateSeasonMutation.mutate()}
+                  disabled={evaluateSeasonMutation.isPending}
                   className="btn-primary flex items-center justify-center gap-2 mx-auto"
                 >
                   <TrendingUp className="w-4 h-4" />
-                  View Progression
+                  {evaluateSeasonMutation.isPending ? 'Evaluating...' : 'Evaluate Season'}
                 </button>
-              </>
+              </div>
+
+            /* Step 2: Evaluated — show results + next action */
             ) : (
-              <>
-                <p className="text-dark-400 text-sm mb-4">
-                  Open the transfer window to retain players and hold a mini-auction for Season {(careerData?.current_season_number || 1) + 1}.
-                </p>
-                <button
-                  onClick={() => {
-                    transferApi.start(careerId!).then(() => {
-                      queryClient.invalidateQueries({ queryKey: ['career'] });
-                      navigate('/transfer-window');
-                    });
-                  }}
-                  className="btn-primary flex items-center justify-center gap-2 mx-auto"
-                >
-                  Transfer Window <ArrowRight className="w-4 h-4" />
-                </button>
-              </>
+              <div>
+                {/* Evaluation results */}
+                <div className="text-center mb-4">
+                  <h2 className="text-lg font-semibold text-white mb-2">Season Evaluation</h2>
+                  <div className="flex items-center justify-center gap-4 text-sm mb-3">
+                    <span className="text-dark-400">
+                      Finished <span className="text-white font-bold">#{evalResult.position}</span>
+                    </span>
+                    <span className={clsx(
+                      'font-bold',
+                      evalResult.reputation_change > 0 ? 'text-pitch-400' : evalResult.reputation_change < 0 ? 'text-ball-400' : 'text-dark-400'
+                    )}>
+                      {evalResult.reputation_change > 0 ? '+' : ''}{evalResult.reputation_change} Rep
+                    </span>
+                  </div>
+                  {evalResult.objectives_met.length > 0 && (
+                    <div className="space-y-1 mb-3">
+                      {evalResult.objectives_met.map((obj, i) => (
+                        <div key={i} className="flex items-center justify-center gap-2 text-sm text-pitch-400">
+                          <Target className="w-3.5 h-3.5" />
+                          {obj}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Promotion available */}
+                {evalResult.promotion_available ? (
+                  <div className="text-center">
+                    <div className="bg-pitch-500/10 border border-pitch-500/20 rounded-lg p-4 mb-4">
+                      <Crown className="w-6 h-6 text-pitch-400 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-pitch-400">
+                        Promotion Available!
+                      </p>
+                      <p className="text-xs text-dark-400 mt-1">
+                        You've earned a spot at the next level of cricket.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => acceptPromotionMutation.mutate()}
+                      disabled={acceptPromotionMutation.isPending}
+                      className="btn-primary flex items-center justify-center gap-2 mx-auto w-full"
+                    >
+                      <Crown className="w-4 h-4" />
+                      {acceptPromotionMutation.isPending ? 'Promoting...' : 'Accept Promotion'}
+                    </button>
+                  </div>
+
+                /* No promotion — district: start next season directly */
+                ) : tier === 'district' ? (
+                  <div className="text-center">
+                    <button
+                      onClick={() => startNextSeasonMutation.mutate()}
+                      disabled={startNextSeasonMutation.isPending}
+                      className="btn-primary flex items-center justify-center gap-2 mx-auto w-full"
+                    >
+                      {startNextSeasonMutation.isPending ? 'Starting...' : 'Start Next Season'}
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                /* No promotion — state/ipl: transfer window */
+                ) : (
+                  <div className="text-center">
+                    <button
+                      onClick={() => {
+                        transferApi.start(careerId!).then(() => {
+                          queryClient.invalidateQueries({ queryKey: ['career'] });
+                          navigate('/transfer-window');
+                        });
+                      }}
+                      className="btn-primary flex items-center justify-center gap-2 mx-auto w-full"
+                    >
+                      Transfer Window <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </motion.div>
         )}

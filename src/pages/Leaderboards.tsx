@@ -6,7 +6,7 @@ import { seasonApi } from '../api/client';
 import type { Player, BatterLeaderboardEntry, BowlerLeaderboardEntry, SixesLeaderboardEntry, CatchesLeaderboardEntry } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
-import { PageHeader } from '../components/common/PageHeader';
+import { SubPageHeader } from '../components/common/SubPageHeader';
 import { PlayerDetailModal } from '../components/common/PlayerDetailModal';
 import clsx from 'clsx';
 
@@ -80,7 +80,7 @@ export function LeaderboardsPage() {
 
   return (
     <>
-      <PageHeader title="Leaderboards" showBack backTo="/dashboard" />
+      <SubPageHeader title="Leaderboards" showBack backTo="/dashboard" />
       <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">

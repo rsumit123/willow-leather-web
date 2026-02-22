@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { careerApi } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
-import { PageHeader } from '../components/common/PageHeader';
+import { SubPageHeader } from '../components/common/SubPageHeader';
 import clsx from 'clsx';
 
 const roleLabels: Record<string, string> = {
@@ -55,14 +55,17 @@ export function SquadRegistrationPage() {
   }
 
   // Save mutation
+  const [saveError, setSaveError] = useState<string | null>(null);
   const saveMutation = useMutation({
     mutationFn: (playerIds: number[]) =>
       careerApi.setSquadRegistration(careerId!, playerIds),
     onSuccess: () => {
+      setSaveError(null);
       queryClient.invalidateQueries({ queryKey: ['squad-registration'] });
       queryClient.invalidateQueries({ queryKey: ['playing-xi'] });
       navigate('/dashboard');
     },
+    onError: () => setSaveError('Failed to save registration. Please try again.'),
   });
 
   // Compute validation state
@@ -115,7 +118,7 @@ export function SquadRegistrationPage() {
 
   return (
     <>
-      <PageHeader title="Squad Registration" showBack backTo="/dashboard" />
+      <SubPageHeader title="Squad Registration" showBack backTo="/dashboard" />
       <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
         {/* Info */}
         <div className="glass-card p-4">
@@ -236,9 +239,16 @@ export function SquadRegistrationPage() {
           })}
         </div>
 
+        {/* Error banner */}
+        {saveError && (
+          <div className="bg-ball-500/10 border border-ball-500/20 rounded-lg p-3 text-sm text-ball-400">
+            {saveError}
+          </div>
+        )}
+
         {/* Fixed bottom CTA */}
         <div className="h-20" /> {/* spacer */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-dark-950/95 backdrop-blur-sm border-t border-dark-800 z-40">
+        <div className="fixed bottom-16 left-0 right-0 p-4 bg-dark-950/95 backdrop-blur-sm border-t border-dark-800 z-50">
           <div className="max-w-lg mx-auto">
             <button
               onClick={() => saveMutation.mutate(Array.from(selectedIds))}

@@ -14,7 +14,7 @@ import { notificationApi } from '../api/client';
 import type { Notification } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
-import { PageHeader } from '../components/common/PageHeader';
+import { SubPageHeader } from '../components/common/SubPageHeader';
 import clsx from 'clsx';
 
 const ICON_MAP: Record<string, typeof Trophy> = {
@@ -88,8 +88,10 @@ export function InboxPage() {
 
   return (
     <>
-      <PageHeader
+      <SubPageHeader
         title="Inbox"
+        showBack
+        backTo="/dashboard"
         action={
           hasUnread ? (
             <button
