@@ -13,7 +13,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { calendarApi, seasonApi } from '../api/client';
+import { calendarApi, seasonApi, trainingApi } from '../api/client';
 import type { GameDay } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
@@ -65,6 +65,15 @@ export function CalendarPage() {
     queryFn: () => seasonApi.getFixtures(careerId!, 'league', 'scheduled').then((r) => r.data),
     enabled: !!careerId,
     staleTime: 5000,
+  });
+
+  // Check if training is already done today (API returns error if unavailable)
+  const { isError: trainingUnavailable } = useQuery({
+    queryKey: ['available-drills', careerId],
+    queryFn: () => trainingApi.getAvailableDrills(careerId!).then((r) => r.data),
+    enabled: !!careerId && calendarData?.current_day?.day_type === 'training',
+    retry: false,
+    staleTime: 60000,
   });
 
   const [calendarError, setCalendarError] = useState<string | null>(null);
@@ -272,12 +281,19 @@ export function CalendarPage() {
 
                   {/* Training day actions */}
                   {displayDay.day_type === 'training' && displayDay.is_current && (
-                    <button
-                      onClick={() => navigate('/training')}
-                      className="btn-primary text-sm w-full"
-                    >
-                      Train Squad
-                    </button>
+                    trainingUnavailable ? (
+                      <div className="flex items-center gap-2 text-sm text-pitch-400">
+                        <Check className="w-4 h-4" />
+                        <span className="font-medium">Training Complete</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => navigate('/training')}
+                        className="btn-primary text-sm w-full"
+                      >
+                        Train Squad
+                      </button>
+                    )
                   )}
 
                   {displayDay.event_description && (
