@@ -238,6 +238,15 @@ export interface Career {
   user_team?: Team;
 }
 
+// ─── Squad Registration Types ─────────────────────────────────────
+export interface SquadRegistrationResponse {
+  registered_player_ids: number[];
+  registered_count: number;
+  max_allowed: number;
+  is_complete: boolean;
+  tier: string;
+}
+
 // ─── Calendar Types ────────────────────────────────────────────────
 export interface GameDay {
   id: number;
@@ -927,6 +936,10 @@ export const careerApi = {
     api.post<PlayingXIResponse>(`/career/${careerId}/playing-xi`, { player_ids: playerIds }),
   validatePlayingXI: (careerId: number, playerIds: number[]) =>
     api.post<PlayingXIValidationResponse>(`/career/${careerId}/playing-xi/validate`, { player_ids: playerIds }),
+  getSquadRegistration: (careerId: number) =>
+    api.get<SquadRegistrationResponse>(`/career/${careerId}/squad-registration`),
+  setSquadRegistration: (careerId: number, playerIds: number[]) =>
+    api.post<SquadRegistrationResponse>(`/career/${careerId}/squad-registration`, { player_ids: playerIds }),
 };
 
 export const auctionApi = {

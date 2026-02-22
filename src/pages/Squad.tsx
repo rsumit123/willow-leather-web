@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
-import { Users, TrendingUp, Globe, Shield } from 'lucide-react';
+import { Users, TrendingUp, Globe, Shield, Zap } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { careerApi } from '../api/client';
+import { careerApi, trainingApi } from '../api/client';
+import type { ActiveBoost } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { PlayerCard } from '../components/common/PlayerCard';
@@ -18,6 +19,20 @@ export function SquadPage() {
     queryFn: () =>
       careerApi.getSquad(careerId!, career!.user_team_id!).then((r) => r.data),
     enabled: !!careerId && !!career?.user_team_id,
+  });
+
+  // Active training boosts
+  const { data: activeBoosts } = useQuery({
+    queryKey: ['active-boosts', careerId],
+    queryFn: () => trainingApi.getActiveBoosts(careerId!).then((r) => r.data),
+    enabled: !!careerId,
+  });
+
+  // Map boosts by player_id for quick lookup
+  const boostsByPlayer: Record<number, ActiveBoost[]> = {};
+  activeBoosts?.forEach((b) => {
+    if (!boostsByPlayer[b.player_id]) boostsByPlayer[b.player_id] = [];
+    boostsByPlayer[b.player_id].push(b);
   });
 
   if (isLoading || !squad) {
@@ -56,24 +71,28 @@ export function SquadPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2">
+        <div className={clsx('grid gap-2', career?.tier === 'district' ? 'grid-cols-3' : 'grid-cols-4')}>
           <div className="stat-card">
             <Users className="w-5 h-5 text-pitch-500 mb-1" />
             <p className="text-2xl font-bold text-white">{squad.total_players}</p>
             <p className="text-xs text-dark-400">Players</p>
           </div>
-          <div className="stat-card">
-            <Globe className="w-5 h-5 text-blue-500 mb-1" />
-            <p className="text-2xl font-bold text-white">{squad.overseas_count}</p>
-            <p className="text-xs text-dark-400">Overseas</p>
-          </div>
-          <div className="stat-card">
-            <TrendingUp className="w-5 h-5 text-amber-500 mb-1" />
-            <p className="text-2xl font-bold text-white">
-              {((squad.team.remaining_budget || 0) / 10000000).toFixed(0)}Cr
-            </p>
-            <p className="text-xs text-dark-400">Budget</p>
-          </div>
+          {career?.tier !== 'district' && (
+            <div className="stat-card">
+              <Globe className="w-5 h-5 text-blue-500 mb-1" />
+              <p className="text-2xl font-bold text-white">{squad.overseas_count}</p>
+              <p className="text-xs text-dark-400">Overseas</p>
+            </div>
+          )}
+          {career?.tier !== 'district' && (
+            <div className="stat-card">
+              <TrendingUp className="w-5 h-5 text-amber-500 mb-1" />
+              <p className="text-2xl font-bold text-white">
+                {((squad.team.remaining_budget || 0) / 10000000).toFixed(0)}Cr
+              </p>
+              <p className="text-xs text-dark-400">Budget</p>
+            </div>
+          )}
           <div className="stat-card">
             <Shield className="w-5 h-5 text-emerald-500 mb-1" />
             <p className="text-2xl font-bold text-white">
@@ -121,6 +140,19 @@ export function SquadPage() {
             transition={{ delay: index * 0.05 }}
           >
             <PlayerCard player={player} showPrice />
+            {boostsByPlayer[player.id] && (
+              <div className="flex flex-wrap gap-1.5 mt-1.5 px-2">
+                {boostsByPlayer[player.id].map((boost, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full"
+                  >
+                    <Zap className="w-2.5 h-2.5" />
+                    +{boost.boost_amount} {boost.boost_attribute} ({boost.matches_remaining}m left)
+                  </span>
+                ))}
+              </div>
+            )}
           </motion.div>
         ))}
 

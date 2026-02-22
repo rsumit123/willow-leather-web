@@ -21,6 +21,7 @@ import { InboxPage } from './pages/Inbox';
 import { TrainingPage } from './pages/Training';
 import { ProgressionPage } from './pages/Progression';
 import { ManagerStatsPage } from './pages/ManagerStats';
+import { SquadRegistrationPage } from './pages/SquadRegistration';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,6 +65,7 @@ function App() {
                   <Route path="/training" element={<TrainingPage />} />
                   <Route path="/progression" element={<ProgressionPage />} />
                   <Route path="/manager-stats" element={<ManagerStatsPage />} />
+                  <Route path="/squad-registration" element={<SquadRegistrationPage />} />
                 </Route>
               </Route>
 
