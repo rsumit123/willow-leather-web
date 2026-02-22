@@ -133,6 +133,15 @@ export function DashboardPage() {
     enabled: !!careerId && (careerData?.status === 'in_season' || careerData?.status === 'playoffs' || careerData?.status === 'post_season'),
   });
 
+  // Check if training is available (only on training days)
+  const { isError: trainingUnavailable } = useQuery({
+    queryKey: ['available-drills', careerId],
+    queryFn: () => trainingApi.getAvailableDrills(careerId!).then((r) => r.data),
+    enabled: !!careerId && calendarData?.current_day?.day_type === 'training',
+    retry: false,
+    staleTime: 60000,
+  });
+
   // Shared error state for dashboard mutations
   const [dashError, setDashError] = useState<string | null>(null);
   const onMutationError = (error: any) => {
@@ -404,15 +413,6 @@ export function DashboardPage() {
   // Current day info
   const currentDay = calendarData?.current_day;
   const hasCalendar = calendarData?.has_calendar;
-
-  // Check if training is available (only on training days)
-  const { isError: trainingUnavailable } = useQuery({
-    queryKey: ['available-drills', careerId],
-    queryFn: () => trainingApi.getAvailableDrills(careerId!).then((r) => r.data),
-    enabled: !!careerId && currentDay?.day_type === 'training',
-    retry: false,
-    staleTime: 60000,
-  });
 
   // Tier display name
   const tierDisplayName = tier === 'district' ? 'District Cricket' : tier === 'state' ? 'State / Ranji' : 'IPL';
