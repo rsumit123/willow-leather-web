@@ -23,9 +23,6 @@ export function ScoreHeader({ state, team1Name, team2Name, onScorecardClick }: S
   // Use batting_team_name from state if available, otherwise fallback to old logic
   const battingTeam = state.batting_team_name || (state.innings === 1 ? team1Name : team2Name);
 
-  // Get short team code (first 2-3 chars)
-  const teamCode = battingTeam.substring(0, 3).toUpperCase();
-
   return (
     <div className="mx-4 mt-4 safe-top">
       {/* Floating pill card */}
@@ -49,8 +46,8 @@ export function ScoreHeader({ state, team1Name, team2Name, onScorecardClick }: S
         <div className="px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-white uppercase tracking-wide">
-                {teamCode}
+              <span className="text-xs font-bold text-white tracking-wide truncate max-w-[140px]">
+                {battingTeam}
               </span>
               <motion.span
                 key={state.runs + state.wickets}

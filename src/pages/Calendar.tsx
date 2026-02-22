@@ -10,9 +10,10 @@ import {
   Plane,
   Calendar as CalendarIcon,
   SkipForward,
+  Check,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { calendarApi } from '../api/client';
+import { calendarApi, seasonApi } from '../api/client';
 import type { GameDay } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
@@ -39,6 +40,7 @@ export function CalendarPage() {
     queryKey: ['calendar-current', careerId],
     queryFn: () => calendarApi.getCurrent(careerId!).then((r) => r.data),
     enabled: !!careerId,
+    staleTime: 5000,
   });
 
   // Parse current date for month view
@@ -54,6 +56,15 @@ export function CalendarPage() {
     queryKey: ['calendar-month', careerId, viewYear, viewMonth + 1],
     queryFn: () => calendarApi.getMonth(careerId!, viewYear, viewMonth + 1).then((r) => r.data),
     enabled: !!careerId,
+    staleTime: 5000,
+  });
+
+  // Scheduled fixtures — used to detect if a match_day fixture is already completed
+  const { data: scheduledFixtures } = useQuery({
+    queryKey: ['scheduled-fixtures', careerId],
+    queryFn: () => seasonApi.getFixtures(careerId!, 'league', 'scheduled').then((r) => r.data),
+    enabled: !!careerId,
+    staleTime: 5000,
   });
 
   const [calendarError, setCalendarError] = useState<string | null>(null);
@@ -227,27 +238,37 @@ export function CalendarPage() {
                   </div>
 
                   {/* Match day details */}
-                  {displayDay.day_type === 'match_day' && displayDay.opponent_name && (
-                    <div className="bg-dark-800/50 rounded-lg p-3 mb-3">
-                      <p className="text-sm text-white font-medium">
-                        vs {displayDay.opponent_name}
-                      </p>
-                      {displayDay.venue && (
-                        <p className="text-xs text-dark-400 mt-0.5">{displayDay.venue}</p>
-                      )}
-                      {displayDay.match_number && (
-                        <p className="text-xs text-dark-500 mt-0.5">Match #{displayDay.match_number}</p>
-                      )}
-                      {displayDay.is_current && displayDay.fixture_id && (
-                        <button
-                          onClick={() => navigate(`/match/${displayDay.fixture_id}`)}
-                          className="btn-primary text-sm mt-3 w-full"
-                        >
-                          Play Match
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  {displayDay.day_type === 'match_day' && displayDay.opponent_name && (() => {
+                    const fixtureCompleted = displayDay.fixture_id
+                      && scheduledFixtures
+                      && !scheduledFixtures.find(f => f.id === displayDay.fixture_id);
+                    return (
+                      <div className="bg-dark-800/50 rounded-lg p-3 mb-3">
+                        <p className="text-sm text-white font-medium">
+                          vs {displayDay.opponent_name}
+                        </p>
+                        {displayDay.venue && (
+                          <p className="text-xs text-dark-400 mt-0.5">{displayDay.venue}</p>
+                        )}
+                        {displayDay.match_number && (
+                          <p className="text-xs text-dark-500 mt-0.5">Match #{displayDay.match_number}</p>
+                        )}
+                        {fixtureCompleted ? (
+                          <div className="flex items-center gap-2 mt-3 text-sm text-pitch-400">
+                            <Check className="w-4 h-4" />
+                            <span className="font-medium">Match Completed</span>
+                          </div>
+                        ) : displayDay.is_current && displayDay.fixture_id ? (
+                          <button
+                            onClick={() => navigate(`/match/${displayDay.fixture_id}`)}
+                            className="btn-primary text-sm mt-3 w-full"
+                          >
+                            Play Match
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
 
                   {/* Training day actions */}
                   {displayDay.day_type === 'training' && displayDay.is_current && (

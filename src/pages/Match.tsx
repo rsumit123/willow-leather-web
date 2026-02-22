@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { matchApi, seasonApi, careerApi, type BallResult, type TossResult } from '../api/client';
+import { matchApi, seasonApi, careerApi, calendarApi, type BallResult, type TossResult } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { ScoreHeader } from '../components/match/ScoreHeader';
@@ -441,6 +441,24 @@ export function MatchPage() {
     playBallMutation.mutate({ agg: aggression, delivery: selectedDelivery || undefined });
   };
 
+  const handleBackToDashboard = async () => {
+    try {
+      // Advance calendar past the match day so dashboard/calendar show the next event
+      await calendarApi.advance(careerId!, true);
+    } catch {
+      // May fail if season ended or no more days — that's fine
+    }
+    // Invalidate all stale queries so dashboard/calendar reflect the completed match
+    queryClient.invalidateQueries({ queryKey: ['calendar-current'] });
+    queryClient.invalidateQueries({ queryKey: ['calendar-month'] });
+    queryClient.invalidateQueries({ queryKey: ['scheduled-fixtures'] });
+    queryClient.invalidateQueries({ queryKey: ['standings'] });
+    queryClient.invalidateQueries({ queryKey: ['career'] });
+    queryClient.invalidateQueries({ queryKey: ['next-fixture'] });
+    queryClient.invalidateQueries({ queryKey: ['leaderboards'] });
+    navigate('/dashboard');
+  };
+
   if (state.status === 'completed') {
     // Show enhanced completion screen if we have match result data
     if (matchResult) {
@@ -449,7 +467,7 @@ export function MatchPage() {
           result={matchResult}
           careerId={careerId!}
           fixtureId={fid}
-          onBackToDashboard={() => navigate('/dashboard')}
+          onBackToDashboard={handleBackToDashboard}
         />
       );
     }

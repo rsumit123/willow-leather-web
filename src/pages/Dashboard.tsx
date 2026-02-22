@@ -29,6 +29,8 @@ import { TeamBadge } from '../components/common/TeamCard';
 import { PlayoffBracket } from '../components/playoffs/PlayoffBracket';
 import { AIMatchSimulationOverlay } from '../components/dashboard/AIMatchSimulationOverlay';
 import clsx from 'clsx';
+import { useCoachMarks } from '../hooks/useCoachMarks';
+import { CoachMark } from '../components/common/CoachMark';
 
 const TIER_COLORS: Record<string, { text: string; bg: string; accent: string }> = {
   district: { text: 'text-amber-400', bg: 'bg-amber-500/20', accent: 'border-amber-500/30' },
@@ -41,6 +43,7 @@ export function DashboardPage() {
   const queryClient = useQueryClient();
   const { careerId, setCareer } = useGameStore();
   const [showAISimulation, setShowAISimulation] = useState(false);
+  const { isVisible: isCoachVisible, dismiss: dismissCoach } = useCoachMarks();
 
   // Refresh career data
   const { data: careerData, isLoading: careerLoading } = useQuery({
@@ -414,6 +417,13 @@ export function DashboardPage() {
   const currentDay = calendarData?.current_day;
   const hasCalendar = calendarData?.has_calendar;
 
+  // Detect if the current match_day's fixture is already completed
+  // scheduledFixtures only returns status=scheduled fixtures, so absence means completed
+  const isCurrentMatchCompleted = currentDay?.day_type === 'match_day'
+    && currentDay?.fixture_id
+    && scheduledFixtures
+    && !scheduledFixtures.find(f => f.id === currentDay.fixture_id);
+
   // Tier display name
   const tierDisplayName = tier === 'district' ? 'District Cricket' : tier === 'state' ? 'State / Ranji' : 'IPL';
 
@@ -635,17 +645,37 @@ export function DashboardPage() {
             {currentDay.day_type === 'match_day' && (
               <div>
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-ball-500/20 flex items-center justify-center">
-                    <Swords className="w-5 h-5 text-ball-500" />
+                  <div className={clsx(
+                    'w-10 h-10 rounded-xl flex items-center justify-center',
+                    isCurrentMatchCompleted ? 'bg-pitch-500/20' : 'bg-ball-500/20',
+                  )}>
+                    {isCurrentMatchCompleted ? (
+                      <Check className="w-5 h-5 text-pitch-400" />
+                    ) : (
+                      <Swords className="w-5 h-5 text-ball-500" />
+                    )}
                   </div>
                   <div>
-                    <p className="font-medium text-white">Match Day</p>
+                    <p className="font-medium text-white">
+                      {isCurrentMatchCompleted ? 'Match Complete' : 'Match Day'}
+                    </p>
                     {currentDay.opponent_name && (
-                      <p className="text-xs text-dark-400">vs {currentDay.opponent_name}</p>
+                      <p className="text-xs text-dark-400">
+                        {userTeam?.short_name} vs {currentDay.opponent_name}
+                      </p>
                     )}
                   </div>
                 </div>
-                {currentDay.fixture_id ? (
+                {isCurrentMatchCompleted ? (
+                  <button
+                    onClick={() => advanceMutation.mutate(true)}
+                    disabled={advanceMutation.isPending}
+                    className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
+                  >
+                    <SkipForward className="w-4 h-4" />
+                    {advanceMutation.isPending ? 'Advancing...' : 'Advance to Next Event'}
+                  </button>
+                ) : currentDay.fixture_id ? (
                   <button
                     onClick={() => {
                       if (aiMatchesBeforeUserMatch.length > 0) {
@@ -806,6 +836,44 @@ export function DashboardPage() {
               </div>
             )}
           </motion.div>
+        )}
+
+        {/* ─── Coach Marks ─── */}
+        {careerData?.status === 'pre_season' && !playingXI?.is_set && (
+          <CoachMark
+            id="first_playing_xi"
+            title="Welcome, Manager!"
+            message="Start by selecting your Playing XI — pick 11 players to take the field."
+            isVisible={isCoachVisible('first_playing_xi')}
+            onDismiss={dismissCoach}
+          />
+        )}
+        {hasCalendar && currentDay?.day_type === 'match_day' && !isCurrentMatchCompleted && (
+          <CoachMark
+            id="first_match_day"
+            title="Match Day!"
+            message="Tap Play Match to begin. Review your XI, do the toss, then play ball-by-ball."
+            isVisible={isCoachVisible('first_match_day')}
+            onDismiss={dismissCoach}
+          />
+        )}
+        {hasCalendar && currentDay?.day_type === 'training' && (
+          <CoachMark
+            id="first_training_day"
+            title="Training Day"
+            message="Training drills give temporary stat boosts for 2 matches. Choose wisely!"
+            isVisible={isCoachVisible('first_training_day')}
+            onDismiss={dismissCoach}
+          />
+        )}
+        {hasCalendar && (currentDay?.day_type === 'rest' || currentDay?.day_type === 'travel') && (
+          <CoachMark
+            id="first_rest_day"
+            title="Rest Day"
+            message="Nothing to do today. Tap 'Skip to Next Event' to jump ahead."
+            isVisible={isCoachVisible('first_rest_day')}
+            onDismiss={dismissCoach}
+          />
         )}
 
         {/* ─── Pre-season actions ─── */}
