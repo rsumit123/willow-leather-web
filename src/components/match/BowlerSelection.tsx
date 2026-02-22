@@ -8,6 +8,7 @@ interface BowlerSelectionProps {
   bowlers: AvailableBowler[];
   onSelect: (bowlerId: number) => void;
   isLoading: boolean;
+  error?: string;
 }
 
 function formatBowlingType(type: string): string {
@@ -76,7 +77,7 @@ function DNAMiniBars({ dna }: { dna: BowlerDNA }) {
   );
 }
 
-export function BowlerSelection({ bowlers, onSelect, isLoading }: BowlerSelectionProps) {
+export function BowlerSelection({ bowlers, onSelect, isLoading, error }: BowlerSelectionProps) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const handleSelect = useCallback(
@@ -185,7 +186,12 @@ export function BowlerSelection({ bowlers, onSelect, isLoading }: BowlerSelectio
             ))}
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 space-y-2">
+            {error && (
+              <div className="bg-ball-500/10 border border-ball-500/20 rounded-lg p-2 text-xs text-ball-400 text-center">
+                {error}
+              </div>
+            )}
             <button
               onClick={handleConfirm}
               disabled={!selectedId || isLoading}

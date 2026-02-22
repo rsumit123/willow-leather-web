@@ -473,6 +473,7 @@ export function PlayingXIPage() {
         navigate('/dashboard');
       }
     },
+    onError: () => {},
   });
 
   // Initialize batting order from existing XI
@@ -704,6 +705,11 @@ export function PlayingXIPage() {
         {/* Fixed bottom confirm button */}
         <div className="fixed bottom-16 left-0 right-0 p-4 bg-gradient-to-t from-dark-950 via-dark-950 to-transparent z-50">
           <div className="max-w-4xl mx-auto">
+            {setXIMutation.isError && (
+              <div className="bg-ball-500/10 border border-ball-500/20 rounded-lg p-3 mb-2 text-sm text-ball-400 text-center">
+                {(setXIMutation.error as any)?.response?.data?.detail || 'Failed to save playing XI. Please try again.'}
+              </div>
+            )}
             <button
               onClick={() => setXIMutation.mutate()}
               disabled={!isValid || setXIMutation.isPending}

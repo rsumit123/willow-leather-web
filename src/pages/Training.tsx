@@ -41,10 +41,11 @@ export function TrainingPage() {
   const [trainingComplete, setTrainingComplete] = useState(false);
 
   // Available drills
-  const { data: drills, isLoading: drillsLoading } = useQuery({
+  const { data: drills, isLoading: drillsLoading, isError: drillsError, error: drillsErrorData } = useQuery({
     queryKey: ['available-drills', careerId],
     queryFn: () => trainingApi.getAvailableDrills(careerId!).then((r) => r.data),
     enabled: !!careerId,
+    retry: false,
   });
 
   // Squad for player selection
@@ -77,6 +78,36 @@ export function TrainingPage() {
 
   if (!careerId) return null;
   if (drillsLoading) return <Loading fullScreen text="Loading drills..." />;
+
+  // Error guard — not training day or already trained
+  if (drillsError) {
+    const errorDetail = (drillsErrorData as any)?.response?.data?.detail || 'Training is not available right now.';
+    const isAlreadyTrained = typeof errorDetail === 'string' && errorDetail.toLowerCase().includes('already trained');
+
+    return (
+      <>
+        <SubPageHeader title="Training" showBack backTo="/dashboard" />
+        <div className="max-w-lg mx-auto px-4 py-12 text-center">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-3xl flex items-center justify-center"
+            style={{ backgroundColor: isAlreadyTrained ? 'rgba(34,197,94,0.15)' : 'rgba(100,116,139,0.15)' }}
+          >
+            {isAlreadyTrained ? (
+              <Check className="w-10 h-10 text-pitch-400" />
+            ) : (
+              <Dumbbell className="w-10 h-10 text-dark-500" />
+            )}
+          </div>
+          <h2 className="text-xl font-display font-bold text-white mb-2">
+            {isAlreadyTrained ? 'Training Complete' : 'Training Unavailable'}
+          </h2>
+          <p className="text-dark-400 text-sm mb-6">{errorDetail}</p>
+          <button onClick={() => navigate('/dashboard')} className="btn-primary">
+            Back to Hub
+          </button>
+        </div>
+      </>
+    );
+  }
 
   // Training complete screen
   if (trainingComplete) {

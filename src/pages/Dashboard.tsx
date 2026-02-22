@@ -19,9 +19,10 @@ import {
   Bell,
   SkipForward,
   TrendingUp,
+  Check,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { careerApi, seasonApi, transferApi, calendarApi, notificationApi, progressionApi } from '../api/client';
+import { careerApi, seasonApi, transferApi, calendarApi, notificationApi, progressionApi, trainingApi } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { TeamBadge } from '../components/common/TeamCard';
@@ -132,37 +133,49 @@ export function DashboardPage() {
     enabled: !!careerId && (careerData?.status === 'in_season' || careerData?.status === 'playoffs' || careerData?.status === 'post_season'),
   });
 
+  // Shared error state for dashboard mutations
+  const [dashError, setDashError] = useState<string | null>(null);
+  const onMutationError = (error: any) => {
+    setDashError(error?.response?.data?.detail || 'Something went wrong. Please try again.');
+  };
+
   // Generate fixtures mutation
   const generateFixturesMutation = useMutation({
     mutationFn: () => seasonApi.generateFixtures(careerId!),
     onSuccess: () => {
+      setDashError(null);
       queryClient.invalidateQueries({ queryKey: ['career'] });
       queryClient.invalidateQueries({ queryKey: ['standings'] });
       queryClient.invalidateQueries({ queryKey: ['next-fixture'] });
     },
+    onError: onMutationError,
   });
 
   // Simulate next match
   const simulateMatchMutation = useMutation({
     mutationFn: () => seasonApi.simulateNextMatch(careerId!),
     onSuccess: () => {
+      setDashError(null);
       queryClient.invalidateQueries({ queryKey: ['standings'] });
       queryClient.invalidateQueries({ queryKey: ['next-fixture'] });
       queryClient.invalidateQueries({ queryKey: ['career'] });
       queryClient.invalidateQueries({ queryKey: ['playoff-bracket'] });
     },
+    onError: onMutationError,
   });
 
   // Generate next playoff fixture
   const generateNextPlayoffMutation = useMutation({
     mutationFn: () => seasonApi.generateNextPlayoff(careerId!),
     onSuccess: (response) => {
+      setDashError(null);
       queryClient.invalidateQueries({ queryKey: ['playoff-bracket'] });
       queryClient.invalidateQueries({ queryKey: ['career'] });
       if (response.data.champion) {
         queryClient.invalidateQueries();
       }
     },
+    onError: onMutationError,
   });
 
   // Simulate next playoff match (for spectating when eliminated)
@@ -172,10 +185,12 @@ export function DashboardPage() {
       return seasonApi.simulateNextMatch(careerId!);
     },
     onSuccess: () => {
+      setDashError(null);
       queryClient.invalidateQueries({ queryKey: ['playoff-bracket'] });
       queryClient.invalidateQueries({ queryKey: ['career'] });
       queryClient.invalidateQueries({ queryKey: ['standings'] });
     },
+    onError: onMutationError,
   });
 
   // Simulate all remaining playoff matches
@@ -196,20 +211,36 @@ export function DashboardPage() {
       return result;
     },
     onSuccess: () => {
+      setDashError(null);
       queryClient.invalidateQueries({ queryKey: ['playoff-bracket'] });
       queryClient.invalidateQueries({ queryKey: ['career'] });
       queryClient.invalidateQueries({ queryKey: ['standings'] });
     },
+    onError: onMutationError,
   });
 
   // Calendar advance
   const advanceMutation = useMutation({
     mutationFn: (skipToEvent: boolean) => calendarApi.advance(careerId!, skipToEvent),
     onSuccess: () => {
+      setDashError(null);
       queryClient.invalidateQueries({ queryKey: ['calendar-current'] });
       queryClient.invalidateQueries({ queryKey: ['career'] });
       queryClient.invalidateQueries({ queryKey: ['next-fixture'] });
+      queryClient.invalidateQueries({ queryKey: ['available-drills'] });
     },
+    onError: onMutationError,
+  });
+
+  // Transfer window start
+  const startTransferMutation = useMutation({
+    mutationFn: () => transferApi.start(careerId!),
+    onSuccess: () => {
+      setDashError(null);
+      queryClient.invalidateQueries({ queryKey: ['career'] });
+      navigate('/transfer-window');
+    },
+    onError: onMutationError,
   });
 
   // Season evaluation
@@ -271,7 +302,12 @@ export function DashboardPage() {
 
   // Auto-generate next playoff fixture if needed
   useEffect(() => {
-    if (careerData?.status === 'playoffs' && playoffBracket) {
+    if (
+      careerData?.status === 'playoffs' &&
+      playoffBracket &&
+      !generateNextPlayoffMutation.isPending &&
+      !generateNextPlayoffMutation.isError
+    ) {
       const q1Done = playoffBracket.qualifier_1?.status === 'completed';
       const elimDone = playoffBracket.eliminator?.status === 'completed';
       const q2Exists = !!playoffBracket.qualifier_2?.team1;
@@ -284,7 +320,7 @@ export function DashboardPage() {
         generateNextPlayoffMutation.mutate();
       }
     }
-  }, [playoffBracket, careerData?.status]);
+  }, [playoffBracket, careerData?.status, generateNextPlayoffMutation.isPending, generateNextPlayoffMutation.isError]);
 
   // Redirect to auction if needed
   useEffect(() => {
@@ -368,6 +404,15 @@ export function DashboardPage() {
   // Current day info
   const currentDay = calendarData?.current_day;
   const hasCalendar = calendarData?.has_calendar;
+
+  // Check if training is available (only on training days)
+  const { isError: trainingUnavailable } = useQuery({
+    queryKey: ['available-drills', careerId],
+    queryFn: () => trainingApi.getAvailableDrills(careerId!).then((r) => r.data),
+    enabled: !!careerId && currentDay?.day_type === 'training',
+    retry: false,
+    staleTime: 60000,
+  });
 
   // Tier display name
   const tierDisplayName = tier === 'district' ? 'District Cricket' : tier === 'state' ? 'State / Ranji' : 'IPL';
@@ -465,6 +510,20 @@ export function DashboardPage() {
             </div>
           )}
         </motion.div>
+
+        {/* ─── Dashboard Error Banner ─── */}
+        {dashError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-ball-500/10 border border-ball-500/20 rounded-lg p-3 flex items-center justify-between"
+          >
+            <span className="text-sm text-ball-400">{dashError}</span>
+            <button onClick={() => setDashError(null)} className="text-ball-400 hover:text-ball-300 text-xs ml-3">
+              Dismiss
+            </button>
+          </motion.div>
+        )}
 
         {/* ─── Championship / Elimination Banners ─── */}
         {isChampion && careerData?.status === 'post_season' && (
@@ -620,31 +679,53 @@ export function DashboardPage() {
             {currentDay.day_type === 'training' && (
               <div>
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                    <Dumbbell className="w-5 h-5 text-blue-400" />
+                  <div className={clsx(
+                    'w-10 h-10 rounded-xl flex items-center justify-center',
+                    trainingUnavailable ? 'bg-pitch-500/20' : 'bg-blue-500/20',
+                  )}>
+                    {trainingUnavailable ? (
+                      <Check className="w-5 h-5 text-pitch-400" />
+                    ) : (
+                      <Dumbbell className="w-5 h-5 text-blue-400" />
+                    )}
                   </div>
                   <div>
-                    <p className="font-medium text-white">Training Day</p>
-                    <p className="text-xs text-dark-400">Choose drills for your squad</p>
+                    <p className="font-medium text-white">
+                      {trainingUnavailable ? 'Training Complete' : 'Training Day'}
+                    </p>
+                    <p className="text-xs text-dark-400">
+                      {trainingUnavailable ? 'You have already trained today' : 'Choose drills for your squad'}
+                    </p>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => navigate('/training')}
-                    className="btn-primary flex-1 flex items-center justify-center gap-2 text-sm"
-                  >
-                    <Dumbbell className="w-4 h-4" />
-                    Train Squad
-                  </button>
+                {!trainingUnavailable ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => navigate('/training')}
+                      className="btn-primary flex-1 flex items-center justify-center gap-2 text-sm"
+                    >
+                      <Dumbbell className="w-4 h-4" />
+                      Train Squad
+                    </button>
+                    <button
+                      onClick={() => advanceMutation.mutate(true)}
+                      disabled={advanceMutation.isPending}
+                      className="btn-secondary flex items-center justify-center gap-2 text-sm"
+                    >
+                      <SkipForward className="w-4 h-4" />
+                      Skip
+                    </button>
+                  </div>
+                ) : (
                   <button
                     onClick={() => advanceMutation.mutate(true)}
                     disabled={advanceMutation.isPending}
-                    className="btn-secondary flex items-center justify-center gap-2 text-sm"
+                    className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
                   >
                     <SkipForward className="w-4 h-4" />
-                    Skip
+                    {advanceMutation.isPending ? 'Advancing...' : 'Skip to Next Event'}
                   </button>
-                </div>
+                )}
               </div>
             )}
 
@@ -690,6 +771,28 @@ export function DashboardPage() {
                   <div>
                     <p className="font-medium text-white">Event Day</p>
                     <p className="text-xs text-dark-400">{currentDay.event_description || 'Special event'}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => advanceMutation.mutate(true)}
+                  disabled={advanceMutation.isPending}
+                  className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
+                >
+                  <SkipForward className="w-4 h-4" />
+                  {advanceMutation.isPending ? 'Advancing...' : 'Skip to Next Event'}
+                </button>
+              </div>
+            )}
+
+            {/* Unknown day_type fallback */}
+            {!['match_day', 'training', 'rest', 'travel', 'event'].includes(currentDay.day_type) && (
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-dark-700/50 flex items-center justify-center">
+                    <Calendar className="w-5 h-5 text-dark-400" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-white capitalize">{currentDay.day_type.replace('_', ' ')}</p>
                   </div>
                 </div>
                 <button
@@ -1082,15 +1185,12 @@ export function DashboardPage() {
                 ) : (
                   <div className="text-center">
                     <button
-                      onClick={() => {
-                        transferApi.start(careerId!).then(() => {
-                          queryClient.invalidateQueries({ queryKey: ['career'] });
-                          navigate('/transfer-window');
-                        });
-                      }}
+                      onClick={() => startTransferMutation.mutate()}
+                      disabled={startTransferMutation.isPending}
                       className="btn-primary flex items-center justify-center gap-2 mx-auto w-full"
                     >
-                      Transfer Window <ArrowRight className="w-4 h-4" />
+                      {startTransferMutation.isPending ? 'Starting...' : 'Transfer Window'}
+                      <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
                 )}

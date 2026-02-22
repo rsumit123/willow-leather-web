@@ -56,13 +56,19 @@ export function CalendarPage() {
     enabled: !!careerId,
   });
 
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+
   // Advance day mutation
   const advanceMutation = useMutation({
     mutationFn: (skipToEvent: boolean) => calendarApi.advance(careerId!, skipToEvent),
     onSuccess: () => {
+      setCalendarError(null);
       queryClient.invalidateQueries({ queryKey: ['calendar-current'] });
       queryClient.invalidateQueries({ queryKey: ['calendar-month'] });
       queryClient.invalidateQueries({ queryKey: ['career'] });
+    },
+    onError: (error: any) => {
+      setCalendarError(error?.response?.data?.detail || 'Failed to advance day. Please try again.');
     },
   });
 
@@ -260,6 +266,16 @@ export function CalendarPage() {
               );
             })()}
           </motion.div>
+        )}
+
+        {/* Calendar error */}
+        {calendarError && (
+          <div className="bg-ball-500/10 border border-ball-500/20 rounded-lg p-3 flex items-center justify-between">
+            <span className="text-sm text-ball-400">{calendarError}</span>
+            <button onClick={() => setCalendarError(null)} className="text-ball-400 hover:text-ball-300 text-xs ml-3">
+              Dismiss
+            </button>
+          </div>
         )}
 
         {/* Skip to Next Event */}

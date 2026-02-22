@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, RefreshCw, Trophy, Users } from 'lucide-react';
@@ -20,6 +20,7 @@ export function TransferWindowPage() {
   const [step, setStep] = useState<Step>('retention');
   const [aiRetentions, setAiRetentions] = useState<AIRetentionEntry[]>([]);
   const [poolSize, setPoolSize] = useState(0);
+  const [transferError, setTransferError] = useState<string | null>(null);
 
   // Check transfer status
   const { data: status, isLoading: statusLoading } = useQuery({
@@ -36,56 +37,68 @@ export function TransferWindowPage() {
   });
 
   // Skip to right step based on status
-  if (status && step === 'retention') {
-    if (status.mini_auction_started) {
-      // Already started mini-auction, redirect
-      navigate('/auction');
-      return null;
+  useEffect(() => {
+    if (status && step === 'retention') {
+      if (status.mini_auction_started) {
+        navigate('/auction');
+        return;
+      }
+      if (status.players_released && status.ai_retentions_done) {
+        setStep('ready');
+      } else if (status.ai_retentions_done) {
+        setStep('release');
+      } else if (status.user_retentions_done) {
+        setStep('ai-reveal');
+      }
     }
-    if (status.players_released && status.ai_retentions_done) {
-      // Ready for mini-auction
-      setStep('ready');
-    } else if (status.ai_retentions_done) {
-      setStep('release');
-    } else if (status.user_retentions_done) {
-      setStep('ai-reveal');
-    }
-  }
+  }, [status, step, navigate]);
+
+  const onTransferError = (error: any) => {
+    setTransferError(error?.response?.data?.detail || 'Something went wrong. Please try again.');
+  };
 
   // Retain mutation
   const retainMutation = useMutation({
     mutationFn: (playerIds: number[]) => transferApi.retain(careerId!, playerIds),
     onSuccess: () => {
+      setTransferError(null);
       queryClient.invalidateQueries({ queryKey: ['transfer-status'] });
       setStep('ai-reveal');
     },
+    onError: onTransferError,
   });
 
   // AI retention mutation
   const aiRetentionMutation = useMutation({
     mutationFn: () => transferApi.processAIRetentions(careerId!),
     onSuccess: (response) => {
+      setTransferError(null);
       setAiRetentions(response.data.retentions);
     },
+    onError: onTransferError,
   });
 
   // Release mutation
   const releaseMutation = useMutation({
     mutationFn: () => transferApi.releaseAndPrepare(careerId!),
     onSuccess: (response) => {
+      setTransferError(null);
       setPoolSize(response.data.players_in_pool);
       queryClient.invalidateQueries({ queryKey: ['transfer-status'] });
       setStep('ready');
     },
+    onError: onTransferError,
   });
 
   // Start mini-auction mutation
   const startAuctionMutation = useMutation({
     mutationFn: () => transferApi.startMiniAuction(careerId!),
     onSuccess: () => {
+      setTransferError(null);
       queryClient.invalidateQueries({ queryKey: ['career'] });
       navigate('/auction');
     },
+    onError: onTransferError,
   });
 
   // Trigger AI retentions when entering ai-reveal step
@@ -98,9 +111,11 @@ export function TransferWindowPage() {
   };
 
   // Start AI retentions if not already done
-  if (step === 'ai-reveal' && aiRetentions.length === 0 && !aiRetentionMutation.isPending && !aiRetentionMutation.isSuccess) {
-    aiRetentionMutation.mutate();
-  }
+  useEffect(() => {
+    if (step === 'ai-reveal' && aiRetentions.length === 0 && !aiRetentionMutation.isPending && !aiRetentionMutation.isSuccess && !aiRetentionMutation.isError) {
+      aiRetentionMutation.mutate();
+    }
+  }, [step, aiRetentions.length, aiRetentionMutation.isPending, aiRetentionMutation.isSuccess, aiRetentionMutation.isError]);
 
   if (!careerId || statusLoading) {
     return <Loading fullScreen text="Loading..." />;
@@ -134,6 +149,16 @@ export function TransferWindowPage() {
             </div>
           ))}
         </div>
+
+        {/* Error banner */}
+        {transferError && (
+          <div className="bg-ball-500/10 border border-ball-500/20 rounded-lg p-3 mb-4 flex items-center justify-between">
+            <span className="text-sm text-ball-400">{transferError}</span>
+            <button onClick={() => setTransferError(null)} className="text-ball-400 hover:text-ball-300 text-xs ml-3">
+              Dismiss
+            </button>
+          </div>
+        )}
 
         <AnimatePresence mode="wait">
           {/* Step 1: Retention Selection */}

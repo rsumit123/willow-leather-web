@@ -88,11 +88,17 @@ export function MatchPage() {
     retry: false, // Don't retry on 404 - session is lost
   });
 
+  const [matchError, setMatchError] = useState<string | null>(null);
+
   // Toss mutation
   const tossMutation = useMutation({
     mutationFn: () => matchApi.doToss(careerId!, fid),
     onSuccess: (response) => {
+      setMatchError(null);
       setTossResult(response.data);
+    },
+    onError: (error: any) => {
+      setMatchError(error?.response?.data?.detail || 'Toss failed. Please try again.');
     },
   });
 
@@ -101,9 +107,13 @@ export function MatchPage() {
     mutationFn: ({ tossWinnerId, electedTo }: { tossWinnerId?: number; electedTo?: string }) =>
       matchApi.startMatch(careerId!, fid, tossWinnerId, electedTo),
     onSuccess: () => {
+      setMatchError(null);
       setShowToss(false);
       setShowPitchReveal(true);
       queryClient.invalidateQueries({ queryKey: ['match-state'] });
+    },
+    onError: (error: any) => {
+      setMatchError(error?.response?.data?.detail || 'Failed to start match. Please try again.');
     },
   });
 
@@ -293,6 +303,9 @@ export function MatchPage() {
       queryClient.setQueryData(['match-state', careerId, fid], response.data);
       setShowBowlerSelect(false);
     },
+    onError: (error: any) => {
+      setMatchError(error?.response?.data?.detail || 'Failed to select bowler.');
+    },
   });
 
   // Select batter mutation
@@ -301,6 +314,9 @@ export function MatchPage() {
     onSuccess: (response) => {
       queryClient.setQueryData(['match-state', careerId, fid], response.data);
       setShowBatterSelect(false);
+    },
+    onError: (error: any) => {
+      setMatchError(error?.response?.data?.detail || 'Failed to select batter.');
     },
   });
 
@@ -395,14 +411,21 @@ export function MatchPage() {
       return <Loading fullScreen text="Loading match..." />;
     }
     return (
-      <TossScreen
-        onToss={() => tossMutation.mutate()}
-        tossResult={tossResult}
-        onElect={handleElect}
-        isLoading={tossMutation.isPending || startMutation.isPending}
-        team1Name={fixture.team1_name}
-        team2Name={fixture.team2_name}
-      />
+      <>
+        {matchError && (
+          <div className="fixed top-4 left-4 right-4 z-[70] bg-ball-500/10 border border-ball-500/20 rounded-lg p-3 text-sm text-ball-400 text-center">
+            {matchError}
+          </div>
+        )}
+        <TossScreen
+          onToss={() => tossMutation.mutate()}
+          tossResult={tossResult}
+          onElect={handleElect}
+          isLoading={tossMutation.isPending || startMutation.isPending}
+          team1Name={fixture.team1_name}
+          team2Name={fixture.team2_name}
+        />
+      </>
     );
   }
 
@@ -487,6 +510,7 @@ export function MatchPage() {
           bowlers={availableBowlers.bowlers}
           onSelect={(bowlerId) => selectBowlerMutation.mutate(bowlerId)}
           isLoading={selectBowlerMutation.isPending}
+          error={selectBowlerMutation.isError ? ((selectBowlerMutation.error as any)?.response?.data?.detail || 'Selection failed') : undefined}
         />
       )}
 
@@ -496,6 +520,7 @@ export function MatchPage() {
           batters={availableBatters.batters}
           onSelect={(batterId) => selectBatterMutation.mutate(batterId)}
           isLoading={selectBatterMutation.isPending}
+          error={selectBatterMutation.isError ? ((selectBatterMutation.error as any)?.response?.data?.detail || 'Selection failed') : undefined}
         />
       )}
 
