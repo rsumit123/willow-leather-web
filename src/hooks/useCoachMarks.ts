@@ -8,13 +8,24 @@ function subscribe(listener: () => void) {
   listeners.push(listener);
   return () => { listeners = listeners.filter(l => l !== listener); };
 }
+
+// Cache the snapshot to maintain referential stability (required by useSyncExternalStore)
+let cachedRaw = '';
+let cachedSnapshot: Record<string, boolean> = {};
+
 function getSnapshot(): Record<string, boolean> {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  } catch {
-    return {};
+  const raw = localStorage.getItem(STORAGE_KEY) || '{}';
+  if (raw !== cachedRaw) {
+    cachedRaw = raw;
+    try {
+      cachedSnapshot = JSON.parse(raw);
+    } catch {
+      cachedSnapshot = {};
+    }
   }
+  return cachedSnapshot;
 }
+
 function notify() { listeners.forEach(l => l()); }
 
 export function useCoachMarks() {
@@ -23,9 +34,10 @@ export function useCoachMarks() {
   const isVisible = useCallback((id: string) => !dismissed[id], [dismissed]);
 
   const dismiss = useCallback((id: string) => {
-    const current = getSnapshot();
-    current[id] = true;
+    const current = { ...getSnapshot(), [id]: true };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+    // Reset cache so next getSnapshot picks up the change
+    cachedRaw = '';
     notify();
   }, []);
 
