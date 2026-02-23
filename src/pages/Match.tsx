@@ -75,7 +75,27 @@ export function MatchPage() {
     }
   }, [playingXI, xiLoading, showPreMatchReview, navigate, fixtureId]);
 
-  // Fetch match state
+  // Early probe: check if match is already in progress (for resume flow)
+  // This fires immediately, even before pre-match review / toss screens
+  const { data: resumeProbe, isError: resumeProbeError } = useQuery({
+    queryKey: ['match-state-probe', careerId, fid],
+    queryFn: () => matchApi.getState(careerId!, fid).then((r) => r.data),
+    enabled: !!careerId && !!fid && (showPreMatchReview || showToss),
+    retry: false,
+    staleTime: Infinity, // Only fetch once
+  });
+
+  // If the probe finds a live match, skip pre-match review and toss
+  useEffect(() => {
+    if (resumeProbe && !resumeProbeError) {
+      setShowPreMatchReview(false);
+      setShowToss(false);
+      // Seed the main query cache so it doesn't re-fetch
+      queryClient.setQueryData(['match-state', careerId, fid], resumeProbe);
+    }
+  }, [resumeProbe, resumeProbeError, queryClient, careerId, fid]);
+
+  // Fetch match state (main query — runs after pre-match/toss screens are dismissed)
   const { data: state, isLoading, isError } = useQuery({
     queryKey: ['match-state', careerId, fid],
     queryFn: () => matchApi.getState(careerId!, fid).then((r) => r.data),
