@@ -251,6 +251,7 @@ export function CalendarPage() {
                     const fixtureCompleted = displayDay.fixture_id
                       && scheduledFixtures
                       && !scheduledFixtures.find(f => f.id === displayDay.fixture_id);
+                    const fixtureInProgress = displayDay.fixture_status === 'in_progress';
                     return (
                       <div className="bg-dark-800/50 rounded-lg p-3 mb-3">
                         <p className="text-sm text-white font-medium">
@@ -267,6 +268,13 @@ export function CalendarPage() {
                             <Check className="w-4 h-4" />
                             <span className="font-medium">Match Completed</span>
                           </div>
+                        ) : fixtureInProgress && displayDay.is_current && displayDay.fixture_id ? (
+                          <button
+                            onClick={() => navigate(`/match/${displayDay.fixture_id}`)}
+                            className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl font-semibold text-sm bg-amber-500 hover:bg-amber-400 text-dark-950 transition-colors mt-3"
+                          >
+                            Resume Match
+                          </button>
                         ) : displayDay.is_current && displayDay.fixture_id ? (
                           <button
                             onClick={() => navigate(`/match/${displayDay.fixture_id}`)}

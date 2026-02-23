@@ -424,6 +424,11 @@ export function DashboardPage() {
     && scheduledFixtures
     && !scheduledFixtures.find(f => f.id === currentDay.fixture_id);
 
+  // Detect if there's a match in progress (for resume functionality)
+  const isCurrentMatchInProgress = currentDay?.day_type === 'match_day'
+    && currentDay?.fixture_id
+    && currentDay?.fixture_status === 'in_progress';
+
   // Tier display name
   const tierDisplayName = tier === 'district' ? 'District Cricket' : tier === 'state' ? 'State / Ranji' : 'IPL';
 
@@ -647,17 +652,19 @@ export function DashboardPage() {
                 <div className="flex items-center gap-3 mb-3">
                   <div className={clsx(
                     'w-10 h-10 rounded-xl flex items-center justify-center',
-                    isCurrentMatchCompleted ? 'bg-pitch-500/20' : 'bg-ball-500/20',
+                    isCurrentMatchCompleted ? 'bg-pitch-500/20' : isCurrentMatchInProgress ? 'bg-amber-500/20' : 'bg-ball-500/20',
                   )}>
                     {isCurrentMatchCompleted ? (
                       <Check className="w-5 h-5 text-pitch-400" />
+                    ) : isCurrentMatchInProgress ? (
+                      <Play className="w-5 h-5 text-amber-400" />
                     ) : (
                       <Swords className="w-5 h-5 text-ball-500" />
                     )}
                   </div>
                   <div>
                     <p className="font-medium text-white">
-                      {isCurrentMatchCompleted ? 'Match Complete' : 'Match Day'}
+                      {isCurrentMatchCompleted ? 'Match Complete' : isCurrentMatchInProgress ? 'Match In Progress' : 'Match Day'}
                     </p>
                     {currentDay.opponent_name && (
                       <p className="text-xs text-dark-400">
@@ -674,6 +681,14 @@ export function DashboardPage() {
                   >
                     <SkipForward className="w-4 h-4" />
                     {advanceMutation.isPending ? 'Advancing...' : 'Advance to Next Event'}
+                  </button>
+                ) : isCurrentMatchInProgress ? (
+                  <button
+                    onClick={() => navigate(`/match/${currentDay.fixture_id}`)}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-semibold text-sm bg-amber-500 hover:bg-amber-400 text-dark-950 transition-colors"
+                  >
+                    <Play className="w-4 h-4" />
+                    Resume Match
                   </button>
                 ) : currentDay.fixture_id ? (
                   <button

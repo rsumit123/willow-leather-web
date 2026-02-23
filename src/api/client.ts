@@ -260,6 +260,7 @@ export interface GameDay {
   venue?: string;
   match_number?: number;
   is_user_home?: boolean;
+  fixture_status?: string;  // "scheduled" | "in_progress" | "completed"
 }
 
 export interface CalendarCurrent {
