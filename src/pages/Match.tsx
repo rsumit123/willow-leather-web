@@ -358,12 +358,14 @@ export function MatchPage() {
   // 2. No striker is currently selected
   // 3. Modal is not already showing
   // 4. Not showing innings change modal
+  // 5. Innings is not complete (all out or 20 overs) — prevents stuck modal on 10th wicket
+  const inningsComplete = (state?.wickets ?? 0) >= 10 || state?.status === 'completed';
   useEffect(() => {
-    if (state?.can_change_batter && !state?.striker && !showBatterSelect && !showInningsChange) {
+    if (state?.can_change_batter && !state?.striker && !showBatterSelect && !showInningsChange && !inningsComplete) {
       queryClient.invalidateQueries({ queryKey: ['available-batters', careerId, fid] });
       setShowBatterSelect(true);
     }
-  }, [state?.can_change_batter, state?.striker, showBatterSelect, showInningsChange, queryClient, careerId, fid]);
+  }, [state?.can_change_batter, state?.striker, showBatterSelect, showInningsChange, inningsComplete, queryClient, careerId, fid]);
 
   // Auto-dismiss milestone alert after 3 seconds
   useEffect(() => {

@@ -24,7 +24,6 @@ import { TraitBadges } from '../components/common/TraitBadge';
 import { IntentBadge } from '../components/common/IntentBadge';
 import { FormBadge } from '../components/common/FormBadge';
 import { PlayerDetailModal } from '../components/common/PlayerDetailModal';
-import type { BatterDNA, BowlerDNA } from '../api/client';
 import clsx from 'clsx';
 import {
   DndContext,
@@ -67,52 +66,6 @@ const ROLE_SHORT: Record<string, string> = {
   bowler: 'BWL',
 };
 
-function getDnaColor(value: number) {
-  if (value >= 70) return 'text-pitch-400';
-  if (value >= 40) return 'text-dark-300';
-  return 'text-red-400';
-}
-
-function DNASummary({ batterDna, bowlerDna, role }: { batterDna?: BatterDNA; bowlerDna?: BowlerDNA; role: string }) {
-  if (!batterDna && !bowlerDna) return null;
-
-  const items: { label: string; value: number }[] = [];
-
-  if (role === 'bowler' && bowlerDna) {
-    items.push({ label: 'Ctrl', value: bowlerDna.control ?? 0 });
-    if (bowlerDna.type === 'pacer') {
-      if (bowlerDna.speed != null) items.push({ label: 'Spd', value: Math.min(100, Math.max(0, Math.round(((bowlerDna.speed - 120) / 35) * 100))) });
-      if (bowlerDna.swing != null) items.push({ label: 'Swg', value: bowlerDna.swing });
-    } else {
-      if (bowlerDna.turn != null) items.push({ label: 'Trn', value: bowlerDna.turn });
-      if (bowlerDna.flight != null) items.push({ label: 'Flt', value: bowlerDna.flight });
-    }
-  } else if (batterDna) {
-    items.push(
-      { label: 'Pace', value: batterDna.vs_pace },
-      { label: 'Spin', value: batterDna.vs_spin },
-      { label: 'Pwr', value: batterDna.power },
-    );
-  }
-
-  if (items.length === 0) return null;
-
-  return (
-    <div className="flex items-center gap-1.5 mt-0.5">
-      {bowlerDna && role === 'bowler' && (
-        <span className="text-[9px] text-dark-500 font-medium">
-          [{bowlerDna.type === 'pacer' ? 'Pace' : 'Spin'}]
-        </span>
-      )}
-      {items.map((item) => (
-        <span key={item.label} className="text-[9px]">
-          <span className="text-dark-500">{item.label}:</span>
-          <span className={getDnaColor(item.value)}>{item.value}</span>
-        </span>
-      ))}
-    </div>
-  );
-}
 
 // Sortable batting order item
 function SortableBattingItem({
@@ -150,23 +103,23 @@ function SortableBattingItem({
     >
       <div
         className={clsx(
-          'flex items-center gap-2 p-3 rounded-xl border transition-all min-w-0',
+          'flex items-center gap-1.5 sm:gap-2 p-2 sm:p-3 rounded-xl border transition-all min-w-0',
           isDragging
             ? 'bg-pitch-500/20 border-pitch-500 shadow-xl shadow-pitch-500/25 scale-[1.01]'
             : 'bg-dark-800/50 border-dark-700/50 hover:border-dark-600'
         )}
       >
         {/* Position number */}
-        <div className="w-7 h-7 rounded-full bg-dark-700 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-dark-700 flex items-center justify-center text-xs sm:text-sm font-bold text-white flex-shrink-0">
           {position}
         </div>
 
         {/* Drag handle - only this triggers drag, rest of card allows scrolling */}
         <div
           {...listeners}
-          className="p-2 -m-1 rounded text-dark-400 cursor-grab active:cursor-grabbing touch-none"
+          className="p-1.5 sm:p-2 -m-0.5 sm:-m-1 rounded text-dark-400 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
         >
-          <GripVertical className="w-4 h-4" />
+          <GripVertical className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </div>
 
         {/* Player info - clickable for details */}
@@ -177,15 +130,15 @@ function SortableBattingItem({
               onShowDetails();
             }
           }}
-          className="flex-1 min-w-0 text-left hover:bg-dark-700/30 -my-2 -ml-1 py-2 pl-1 pr-2 rounded-lg transition-colors"
+          className="flex-1 min-w-0 text-left hover:bg-dark-700/30 -my-2 -ml-1 py-2 pl-1 pr-1 sm:pr-2 rounded-lg transition-colors"
         >
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-white truncate">{player.name}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-white text-sm truncate">{player.name}</span>
             {player.is_overseas && (
               <Globe className="w-3 h-3 text-blue-400 flex-shrink-0" />
             )}
             <span className={clsx(
-              'text-[10px] px-1.5 py-0.5 rounded border',
+              'text-[10px] px-1 sm:px-1.5 py-0.5 rounded border flex-shrink-0',
               ROLE_COLORS[player.role]
             )}>
               {ROLE_SHORT[player.role]}
@@ -196,17 +149,18 @@ function SortableBattingItem({
               <IntentBadge intent={player.batting_intent} compact />
             )}
             {player.traits && player.traits.length > 0 && (
-              <TraitBadges traits={player.traits} maxShow={2} compact />
+              <TraitBadges traits={player.traits} maxShow={1} compact />
             )}
           </div>
-          <DNASummary batterDna={player.batting_dna} bowlerDna={player.bowling_dna} role={player.role} />
         </button>
 
-        {/* Stats */}
-        <div className="flex items-center gap-2 text-xs flex-shrink-0">
-          {player.form !== undefined && player.form !== null && (
-            <FormBadge form={player.form} />
-          )}
+        {/* Stats - compact on mobile */}
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs flex-shrink-0">
+          <span className="hidden sm:inline">
+            {player.form !== undefined && player.form !== null && (
+              <FormBadge form={player.form} />
+            )}
+          </span>
           <div className="text-center">
             <p className={clsx(
               'font-semibold',
@@ -233,9 +187,9 @@ function SortableBattingItem({
             e.stopPropagation();
             onRemove();
           }}
-          className="p-1.5 rounded-lg hover:bg-ball-500/20 text-dark-400 hover:text-ball-400 transition-colors"
+          className="p-1 sm:p-1.5 rounded-lg hover:bg-ball-500/20 text-dark-400 hover:text-ball-400 transition-colors flex-shrink-0"
         >
-          <X className="w-4 h-4" />
+          <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </button>
       </div>
     </div>
@@ -545,13 +499,13 @@ export function PlayingXIPage() {
         backTo={returnTo || "/dashboard"}
       />
 
-      <div className="max-w-4xl mx-auto px-4 py-4 pb-24 overflow-hidden">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 pb-28">
         {/* Two column layout on desktop, stacked on mobile */}
         <div className="grid lg:grid-cols-2 gap-4">
 
           {/* Left: Batting Order */}
           <div className="order-1 lg:order-1">
-            <div className="glass-card p-4 lg:sticky lg:top-4">
+            <div className="glass-card p-3 sm:p-4 lg:sticky lg:top-4">
               {/* Header with count */}
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-semibold text-white flex items-center gap-2">
@@ -620,7 +574,7 @@ export function PlayingXIPage() {
                 <div className="mt-4 pt-4 border-t border-dark-700/50">
                   {/* Role breakdown */}
                   {validation?.breakdown && (
-                    <div className="grid grid-cols-4 gap-2 text-center text-xs mb-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs mb-3">
                       <div className="bg-purple-500/10 rounded px-2 py-1.5">
                         <p className="text-purple-400 font-bold">
                           {validation.breakdown.wicket_keepers}
@@ -703,7 +657,7 @@ export function PlayingXIPage() {
         </div>
 
         {/* Fixed bottom confirm button */}
-        <div className="fixed bottom-16 left-0 right-0 p-4 bg-gradient-to-t from-dark-950 via-dark-950 to-transparent z-50">
+        <div className="fixed bottom-16 left-0 right-0 p-3 sm:p-4 bg-gradient-to-t from-dark-950 via-dark-950 to-transparent z-50">
           <div className="max-w-4xl mx-auto">
             {setXIMutation.isError && (
               <div className="bg-ball-500/10 border border-ball-500/20 rounded-lg p-3 mb-2 text-sm text-ball-400 text-center">
@@ -714,7 +668,7 @@ export function PlayingXIPage() {
               onClick={() => setXIMutation.mutate()}
               disabled={!isValid || setXIMutation.isPending}
               className={clsx(
-                'w-full py-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all',
+                'w-full py-3 sm:py-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all text-sm sm:text-base',
                 isValid
                   ? 'btn-primary'
                   : 'bg-dark-700 text-dark-400 cursor-not-allowed'
