@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, useBlocker } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { matchApi, seasonApi, careerApi, calendarApi, type BallResult, type TossResult } from '../api/client';
 import { useGameStore } from '../store/gameStore';
@@ -110,30 +110,35 @@ export function MatchPage() {
 
   const [matchError, setMatchError] = useState<string | null>(null);
 
-  // Block navigation away from an active match (back button, link clicks)
+  // Block browser back button during active match + warn on refresh/close
   const isMatchActive = !!state && state.status !== 'completed' && !showPreMatchReview && !showToss;
-  const blocker = useBlocker(isMatchActive);
-
-  // Show confirmation dialog when blocker triggers
-  useEffect(() => {
-    if (blocker.state === 'blocked') {
-      const leave = window.confirm('Match is in progress. Your progress is saved — you can resume later. Leave match?');
-      if (leave) {
-        blocker.proceed();
-      } else {
-        blocker.reset();
-      }
-    }
-  }, [blocker]);
-
-  // Warn on browser refresh / tab close during active match
   useEffect(() => {
     if (!isMatchActive) return;
-    const handler = (e: BeforeUnloadEvent) => {
+    // Push a dummy history entry so pressing back pops it instead of leaving
+    window.history.pushState({ matchGuard: true }, '');
+    const handlePopState = () => {
+      const leave = window.confirm('Match is in progress. Your progress is saved — you can resume later. Leave match?');
+      if (leave) {
+        // Actually go back
+        window.history.back();
+      } else {
+        // Re-push the guard entry
+        window.history.pushState({ matchGuard: true }, '');
+      }
+    };
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
     };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Pop the guard entry if it's still there (match completed or component unmount)
+      if (window.history.state?.matchGuard) {
+        window.history.back();
+      }
+    };
   }, [isMatchActive]);
 
   // Toss mutation
