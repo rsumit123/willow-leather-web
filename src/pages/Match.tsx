@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useBlocker } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { matchApi, seasonApi, careerApi, calendarApi, type BallResult, type TossResult } from '../api/client';
 import { useGameStore } from '../store/gameStore';
@@ -109,6 +109,32 @@ export function MatchPage() {
   });
 
   const [matchError, setMatchError] = useState<string | null>(null);
+
+  // Block navigation away from an active match (back button, link clicks)
+  const isMatchActive = !!state && state.status !== 'completed' && !showPreMatchReview && !showToss;
+  const blocker = useBlocker(isMatchActive);
+
+  // Show confirmation dialog when blocker triggers
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      const leave = window.confirm('Match is in progress. Your progress is saved — you can resume later. Leave match?');
+      if (leave) {
+        blocker.proceed();
+      } else {
+        blocker.reset();
+      }
+    }
+  }, [blocker]);
+
+  // Warn on browser refresh / tab close during active match
+  useEffect(() => {
+    if (!isMatchActive) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isMatchActive]);
 
   // Toss mutation
   const tossMutation = useMutation({

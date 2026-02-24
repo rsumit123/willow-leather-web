@@ -418,11 +418,11 @@ export function DashboardPage() {
   const hasCalendar = calendarData?.has_calendar;
 
   // Detect if the current match_day's fixture is already completed
-  // scheduledFixtures only returns status=scheduled fixtures, so absence means completed
+  // Must check fixture_status directly — scheduledFixtures only has status=scheduled,
+  // so an in_progress match would also be absent, incorrectly appearing "completed"
   const isCurrentMatchCompleted = currentDay?.day_type === 'match_day'
     && currentDay?.fixture_id
-    && scheduledFixtures
-    && !scheduledFixtures.find(f => f.id === currentDay.fixture_id);
+    && currentDay?.fixture_status === 'completed';
 
   // Detect if there's a match in progress (for resume functionality)
   const isCurrentMatchInProgress = currentDay?.day_type === 'match_day'
