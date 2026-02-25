@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { matchApi, seasonApi, careerApi, calendarApi, type BallResult, type TossResult } from '../api/client';
+import { matchApi, seasonApi, careerApi, calendarApi, type BallResult, type TossResult, type PitchInfo } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { ScoreHeader } from '../components/match/ScoreHeader';
@@ -26,9 +26,20 @@ export function MatchPage() {
   const navigate = useNavigate();
   const { careerId } = useGameStore();
   const queryClient = useQueryClient();
+  const fid = parseInt(fixtureId || '0');
+
+  // Pitch reveal state — persisted in sessionStorage so it survives navigation to /playing-xi
+  const sessionKey = `match-pending-${fid}`;
+  const pendingData = useRef(() => {
+    try {
+      const raw = sessionStorage.getItem(sessionKey);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }).current();
+
   const [aggression, setAggression] = useState('balanced');
   const [lastBall, setLastBall] = useState<BallResult | null>(null);
-  const [showPreMatchReview, setShowPreMatchReview] = useState(true);
+  const [showPreMatchReview, setShowPreMatchReview] = useState(!pendingData);
   const [showToss, setShowToss] = useState(false);
   const [tossResult, setTossResult] = useState<TossResult | null>(null);
   const [showInningsChange, setShowInningsChange] = useState(false);
@@ -38,7 +49,11 @@ export function MatchPage() {
   const [showScorecard, setShowScorecard] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState<string | null>(null);
   const [scoutPlayerId, setScoutPlayerId] = useState<number | null>(null);
-  const [showPitchReveal, setShowPitchReveal] = useState(false);
+  const [showPitchReveal, setShowPitchReveal] = useState(!!pendingData);
+  const [tossPitchInfo, setTossPitchInfo] = useState<PitchInfo | null>(pendingData?.pitchInfo || null);
+  const [pendingElection, setPendingElection] = useState<{ tossWinnerId: number; electedTo: string } | null>(
+    pendingData?.election || null
+  );
 
   // Milestone alert state
   const [milestone, setMilestone] = useState<{
@@ -51,8 +66,6 @@ export function MatchPage() {
   const playerMilestonesRef = useRef<Record<number, { shown50: boolean; shown100: boolean }>>({});
   const consecutiveWicketsRef = useRef<number>(0);
   const lastBowlerIdRef = useRef<number | null>(null);
-
-  const fid = parseInt(fixtureId || '0');
 
   // Fetch fixture details
   const { data: fixture } = useQuery({
@@ -147,6 +160,10 @@ export function MatchPage() {
     onSuccess: (response) => {
       setMatchError(null);
       setTossResult(response.data);
+      // Store pitch info from toss for later display
+      if (response.data.pitch_info) {
+        setTossPitchInfo(response.data.pitch_info);
+      }
     },
     onError: (error: any) => {
       setMatchError(error?.response?.data?.detail || 'Toss failed. Please try again.');
@@ -160,7 +177,9 @@ export function MatchPage() {
     onSuccess: () => {
       setMatchError(null);
       setShowToss(false);
-      setShowPitchReveal(true);
+      setShowPitchReveal(false);
+      setPendingElection(null);
+      try { sessionStorage.removeItem(sessionKey); } catch { /* ignore */ }
       queryClient.invalidateQueries({ queryKey: ['match-state'] });
     },
     onError: (error: any) => {
@@ -426,15 +445,18 @@ export function MatchPage() {
     setShowToss(true);
   };
 
-  // Handle toss election
+  // Handle toss election — show pitch reveal before starting match
   const handleElect = (choice: 'bat' | 'bowl') => {
     if (tossResult) {
-      // If user won, use their choice. If AI won, AI always bowls first.
       const electedTo = tossResult.user_won_toss ? choice : 'bowl';
-      startMutation.mutate({
-        tossWinnerId: tossResult.toss_winner_id,
-        electedTo,
-      });
+      const election = { tossWinnerId: tossResult.toss_winner_id, electedTo };
+      setPendingElection(election);
+      setShowToss(false);
+      setShowPitchReveal(true);
+      // Persist so it survives navigation to /playing-xi and back
+      try {
+        sessionStorage.setItem(sessionKey, JSON.stringify({ election, pitchInfo: tossPitchInfo }));
+      } catch { /* ignore */ }
     }
   };
 
@@ -479,6 +501,21 @@ export function MatchPage() {
           team2Name={fixture.team2_name}
         />
       </>
+    );
+  }
+
+  // Show pitch reveal between toss and match start
+  if (showPitchReveal && !state && pendingElection) {
+    return (
+      <PitchReveal
+        isOpen={true}
+        onStartMatch={() => startMutation.mutate(pendingElection)}
+        onEditXI={() => {
+          navigate(`/playing-xi?returnTo=/match/${fixtureId}`);
+        }}
+        isStarting={startMutation.isPending}
+        pitchInfo={tossPitchInfo}
+      />
     );
   }
 
@@ -595,11 +632,20 @@ export function MatchPage() {
         />
       )}
 
-      {/* Pitch Reveal */}
+      {/* Pitch Reveal — shown after toss, before match starts */}
       <PitchReveal
         isOpen={showPitchReveal}
-        onClose={() => setShowPitchReveal(false)}
-        pitchInfo={state.pitch_info}
+        onStartMatch={() => {
+          if (pendingElection) {
+            startMutation.mutate(pendingElection);
+          }
+        }}
+        onEditXI={() => {
+          setShowPitchReveal(false);
+          navigate(`/playing-xi?returnTo=/match/${fixtureId}`);
+        }}
+        isStarting={startMutation.isPending}
+        pitchInfo={tossPitchInfo || state?.pitch_info}
       />
 
       {/* Scout Popup */}

@@ -687,6 +687,7 @@ export interface TossResult {
   toss_winner_name: string;
   user_won_toss: boolean;
   user_team_name: string;
+  pitch_info?: PitchInfo;
 }
 
 export interface BallResult {

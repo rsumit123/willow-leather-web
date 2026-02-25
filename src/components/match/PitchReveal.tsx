@@ -1,11 +1,13 @@
-import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { PitchInfo } from '../../api/client';
+import { Users } from 'lucide-react';
 import clsx from 'clsx';
 
 interface PitchRevealProps {
   isOpen: boolean;
-  onClose: () => void;
+  onStartMatch: () => void;
+  onEditXI?: () => void;
+  isStarting?: boolean;
   pitchInfo?: PitchInfo | null;
 }
 
@@ -34,15 +36,7 @@ const statLabels = [
   { key: 'deterioration' as const, label: 'Deterioration' },
 ];
 
-export function PitchReveal({ isOpen, onClose, pitchInfo }: PitchRevealProps) {
-  // Auto-dismiss after 6 seconds
-  useEffect(() => {
-    if (isOpen) {
-      const timer = setTimeout(onClose, 6000);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, onClose]);
-
+export function PitchReveal({ isOpen, onStartMatch, onEditXI, isStarting, pitchInfo }: PitchRevealProps) {
   if (!pitchInfo) return null;
 
   const colors = pitchColors[pitchInfo.name] || pitchColors.balanced;
@@ -55,7 +49,6 @@ export function PitchReveal({ isOpen, onClose, pitchInfo }: PitchRevealProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
           className="fixed inset-0 bg-black/80 z-[55] flex items-center justify-center p-6"
         >
           <motion.div
@@ -63,7 +56,6 @@ export function PitchReveal({ isOpen, onClose, pitchInfo }: PitchRevealProps) {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.85, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            onClick={(e) => e.stopPropagation()}
             className={clsx(
               'max-w-sm w-full rounded-2xl border border-dark-700/50 overflow-hidden bg-gradient-to-b',
               colors.gradient,
@@ -71,6 +63,7 @@ export function PitchReveal({ isOpen, onClose, pitchInfo }: PitchRevealProps) {
             )}
           >
             <div className="p-6 text-center">
+              <p className="text-xs text-dark-400 uppercase tracking-wider mb-1">Pitch Report</p>
               <h2 className={clsx('text-2xl font-display font-bold mb-1', colors.accent)}>
                 {pitchInfo.display_name}
               </h2>
@@ -102,13 +95,23 @@ export function PitchReveal({ isOpen, onClose, pitchInfo }: PitchRevealProps) {
               </div>
             </div>
 
-            <div className="px-6 pb-6">
+            <div className="px-6 pb-6 space-y-2">
               <button
-                onClick={onClose}
+                onClick={onStartMatch}
+                disabled={isStarting}
                 className="btn-primary w-full py-3 rounded-xl text-sm font-semibold"
               >
-                Start Match
+                {isStarting ? 'Starting...' : 'Start Match'}
               </button>
+              {onEditXI && (
+                <button
+                  onClick={onEditXI}
+                  className="w-full py-2.5 rounded-xl text-sm font-medium text-dark-300 hover:text-white hover:bg-dark-700/50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Users className="w-4 h-4" />
+                  Edit Playing XI
+                </button>
+              )}
             </div>
           </motion.div>
         </motion.div>
