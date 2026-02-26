@@ -17,8 +17,10 @@ import {
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { notificationApi } from '../../api/client';
+import type { Notification } from '../../api/client';
 import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
+import { NotificationToast } from './NotificationToast';
 import clsx from 'clsx';
 
 const navItems = [
@@ -45,17 +47,36 @@ export function Layout() {
   });
   const unreadCount = unreadData?.count || 0;
 
-  // Bell shake — triggers when unread count increases
+  // Bell shake + notification toast
   const [bellShaking, setBellShaking] = useState(false);
+  const [toastNotification, setToastNotification] = useState<Notification | null>(null);
   const prevUnreadRef = useRef(0);
+  const initialLoadRef = useRef(true);
+
   useEffect(() => {
-    if (unreadCount > prevUnreadRef.current && prevUnreadRef.current >= 0) {
+    if (unreadCount > prevUnreadRef.current) {
       setBellShaking(true);
-      const timer = setTimeout(() => setBellShaking(false), 2000);
-      return () => clearTimeout(timer);
+      const shakeTimer = setTimeout(() => setBellShaking(false), 2000);
+
+      // Show toast for genuinely new notifications (not initial page load)
+      if (!initialLoadRef.current && careerId) {
+        notificationApi.list(careerId, 1).then((r) => {
+          if (r.data.length > 0) {
+            setToastNotification(r.data[0]);
+          }
+        });
+      }
+
+      prevUnreadRef.current = unreadCount;
+      initialLoadRef.current = false;
+      return () => clearTimeout(shakeTimer);
+    }
+
+    if (initialLoadRef.current && unreadCount >= 0) {
+      initialLoadRef.current = false;
     }
     prevUnreadRef.current = unreadCount;
-  }, [unreadCount]);
+  }, [unreadCount, careerId]);
 
   // Tier color helpers
   const tierColor = career?.tier === 'district' ? 'amber' : career?.tier === 'state' ? 'blue' : 'pitch';
@@ -288,6 +309,14 @@ export function Layout() {
             </div>
           </div>
         </nav>
+      )}
+
+      {/* Notification toast */}
+      {career && !hideNav && (
+        <NotificationToast
+          notification={toastNotification}
+          onDismiss={() => setToastNotification(null)}
+        />
       )}
     </div>
   );

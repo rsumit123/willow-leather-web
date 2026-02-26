@@ -16,13 +16,12 @@ import {
   Swords,
   Dumbbell,
   Coffee,
-  Bell,
   SkipForward,
   TrendingUp,
   Check,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { careerApi, seasonApi, transferApi, calendarApi, notificationApi, progressionApi, trainingApi } from '../api/client';
+import { careerApi, seasonApi, transferApi, calendarApi, progressionApi, trainingApi } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { TeamBadge } from '../components/common/TeamCard';
@@ -56,19 +55,6 @@ export function DashboardPage() {
   const { data: calendarData } = useQuery({
     queryKey: ['calendar-current', careerId],
     queryFn: () => calendarApi.getCurrent(careerId!).then((r) => r.data),
-    enabled: !!careerId,
-  });
-
-  // Notifications
-  const { data: notifications } = useQuery({
-    queryKey: ['notifications-preview', careerId],
-    queryFn: () => notificationApi.list(careerId!, 3).then((r) => r.data),
-    enabled: !!careerId,
-  });
-
-  const { data: unreadData } = useQuery({
-    queryKey: ['unread-count', careerId],
-    queryFn: () => notificationApi.unreadCount(careerId!).then((r) => r.data),
     enabled: !!careerId,
   });
 
@@ -1005,55 +991,6 @@ export function DashboardPage() {
                 </button>
               </>
             )}
-          </motion.div>
-        )}
-
-        {/* ─── Inbox Preview ─── */}
-        {notifications && notifications.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="glass-card overflow-hidden"
-          >
-            <Link
-              to="/inbox"
-              className="px-4 py-3 border-b border-dark-700/50 flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2">
-                <Bell className="w-4 h-4 text-dark-400" />
-                <h2 className="font-semibold text-white text-sm">Inbox</h2>
-                {(unreadData?.count || 0) > 0 && (
-                  <span className="text-xs bg-ball-500 text-white px-1.5 py-0.5 rounded-full font-bold">
-                    {unreadData!.count}
-                  </span>
-                )}
-              </div>
-              <ChevronRight className="w-4 h-4 text-dark-500" />
-            </Link>
-            <div className="divide-y divide-dark-800/50">
-              {notifications.slice(0, 3).map((n) => (
-                <Link
-                  key={n.id}
-                  to={n.action_url || '/inbox'}
-                  className={clsx(
-                    'px-4 py-3 flex items-start gap-3 hover:bg-dark-800/30 transition-colors',
-                    !n.read && 'bg-dark-850/50',
-                  )}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className={clsx(
-                      'text-sm',
-                      !n.read ? 'text-white font-medium' : 'text-dark-300',
-                    )}>
-                      {n.title}
-                    </p>
-                    <p className="text-xs text-dark-400 truncate">{n.body}</p>
-                  </div>
-                  {!n.read && <span className="w-2 h-2 rounded-full bg-pitch-500 mt-1 flex-shrink-0" />}
-                </Link>
-              ))}
-            </div>
           </motion.div>
         )}
 

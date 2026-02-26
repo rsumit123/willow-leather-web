@@ -7,10 +7,13 @@ import {
   AlertTriangle,
   Users,
   X,
+  History,
+  TrendingUp,
+  ArrowRight,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { trainingApi } from '../api/client';
-import type { TrainingPlanPlayer, FocusOption } from '../api/client';
+import type { TrainingPlanPlayer, FocusOption, TrainingImprovement } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { SubPageHeader } from '../components/common/SubPageHeader';
@@ -193,6 +196,65 @@ function FocusSelector({
   );
 }
 
+function TrainingHistorySection({
+  history,
+  isLoading: loading,
+}: {
+  history: TrainingImprovement[] | undefined;
+  isLoading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="py-8 text-center">
+        <div className="w-6 h-6 border-2 border-pitch-500/30 border-t-pitch-500 rounded-full animate-spin mx-auto" />
+        <p className="text-xs text-dark-400 mt-2">Loading history...</p>
+      </div>
+    );
+  }
+
+  if (!history || history.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <History className="w-10 h-10 text-dark-600 mx-auto mb-2" />
+        <p className="text-sm text-dark-400">No training history yet.</p>
+        <p className="text-xs text-dark-500 mt-1">Improvements will appear here after training days.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 pt-2">
+      {history.map((item, i) => (
+        <motion.div
+          key={`${item.player_id}-${item.attribute}-${i}`}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.02 }}
+          className="glass-card p-3 flex items-center gap-3"
+        >
+          <div className="w-8 h-8 rounded-lg bg-pitch-500/20 flex items-center justify-center flex-shrink-0">
+            <TrendingUp className="w-4 h-4 text-pitch-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white truncate">{item.player_name}</p>
+            <p className="text-[10px] text-dark-400">
+              {item.attribute.replace(/_/g, ' ')} • {item.focus.replace(/_/g, ' ')}
+            </p>
+          </div>
+          <div className="text-right flex-shrink-0">
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-dark-400 font-mono">{item.old_value}</span>
+              <ArrowRight className="w-3 h-3 text-dark-500" />
+              <span className="text-white font-mono font-medium">{item.new_value}</span>
+            </div>
+            <span className="text-[10px] text-pitch-400 font-medium">+{item.gain}</span>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 export function TrainingPage() {
   const queryClient = useQueryClient();
   const { careerId } = useGameStore();
@@ -201,11 +263,18 @@ export function TrainingPage() {
   const [expandedPlayer, setExpandedPlayer] = useState<number | null>(null);
   const [pendingPlayerId, setPendingPlayerId] = useState<number | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   const { data: plansData, isLoading } = useQuery({
     queryKey: ['training-plans', careerId],
     queryFn: () => trainingApi.getPlans(careerId!).then((r) => r.data),
     enabled: !!careerId,
+  });
+
+  const { data: trainingHistory, isLoading: historyLoading } = useQuery({
+    queryKey: ['training-history', careerId],
+    queryFn: () => trainingApi.getHistory(careerId!, 30).then((r) => r.data),
+    enabled: !!careerId && showHistory,
   });
 
   const setPlanMutation = useMutation({
@@ -425,6 +494,36 @@ export function TrainingPage() {
             </p>
           </div>
         )}
+
+        {/* ─── Training History ─── */}
+        <button
+          onClick={() => setShowHistory(!showHistory)}
+          className="w-full glass-card p-3 flex items-center justify-between hover:border-dark-500 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-dark-400" />
+            <span className="text-sm font-medium text-white">Training History</span>
+          </div>
+          {showHistory ? (
+            <ChevronUp className="w-4 h-4 text-dark-500" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-dark-500" />
+          )}
+        </button>
+
+        <AnimatePresence>
+          {showHistory && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <TrainingHistorySection history={trainingHistory} isLoading={historyLoading} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </>
   );
