@@ -23,6 +23,7 @@ const ICON_MAP: Record<string, typeof Trophy> = {
   star: Star,
   dumbbell: Dumbbell,
   'x-circle': AlertTriangle,
+  'alert-triangle': AlertTriangle,
 };
 
 const TYPE_COLORS: Record<string, string> = {

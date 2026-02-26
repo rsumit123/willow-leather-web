@@ -1,284 +1,422 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Dumbbell,
-  Zap,
+  ChevronDown,
+  ChevronUp,
   Check,
-  ArrowLeft,
-  Target,
-  Shield,
-  Flame,
+  AlertTriangle,
+  Users,
+  X,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { trainingApi, careerApi } from '../api/client';
-import type { Drill } from '../api/client';
+import { trainingApi } from '../api/client';
+import type { TrainingPlanPlayer, FocusOption } from '../api/client';
 import { useGameStore } from '../store/gameStore';
 import { Loading } from '../components/common/Loading';
 import { SubPageHeader } from '../components/common/SubPageHeader';
 import clsx from 'clsx';
 
-const DRILL_ICONS: Record<string, typeof Dumbbell> = {
-  nets_batting: Target,
-  bowling_practice: Flame,
-  fielding_drills: Shield,
-  fitness_camp: Dumbbell,
-  spin_workshop: Zap,
-  pace_handling: Zap,
-  power_hitting: Zap,
-  death_bowling: Zap,
+type FilterTab = 'all' | 'batsman' | 'bowler' | 'all_rounder' | 'no_plan';
+
+const ROLE_LABELS: Record<string, string> = {
+  batsman: 'BAT',
+  bowler: 'BOWL',
+  all_rounder: 'AR',
+  wicket_keeper: 'WK',
 };
 
-const MAX_PLAYERS = 5;
+const ROLE_COLORS: Record<string, string> = {
+  batsman: 'bg-blue-500/20 text-blue-400',
+  bowler: 'bg-red-500/20 text-red-400',
+  all_rounder: 'bg-purple-500/20 text-purple-400',
+  wicket_keeper: 'bg-amber-500/20 text-amber-400',
+};
+
+const DNA_BAR_COLORS = [
+  'bg-blue-400',
+  'bg-emerald-400',
+  'bg-amber-400',
+  'bg-purple-400',
+  'bg-red-400',
+  'bg-cyan-400',
+  'bg-orange-400',
+];
+
+function DNABar({ label, value, max = 99, colorClass }: { label: string; value: number; max?: number; colorClass: string }) {
+  const pct = Math.min(100, (value / max) * 100);
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] text-dark-400 w-16 text-right truncate">{label}</span>
+      <div className="flex-1 h-1.5 bg-dark-700 rounded-full overflow-hidden">
+        <div className={clsx('h-full rounded-full', colorClass)} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-[10px] font-mono text-dark-300 w-6 text-right">{value}</span>
+    </div>
+  );
+}
+
+function PlayerDNASummary({ player }: { player: TrainingPlanPlayer }) {
+  const bars: { label: string; value: number; max?: number }[] = [];
+
+  // Batting DNA
+  if (player.batting_dna) {
+    const d = player.batting_dna;
+    if (player.role === 'bowler') {
+      // Show fewer batting stats for bowlers
+      bars.push({ label: 'vs Pace', value: d.vs_pace });
+      bars.push({ label: 'vs Spin', value: d.vs_spin });
+    } else {
+      bars.push({ label: 'vs Pace', value: d.vs_pace });
+      bars.push({ label: 'vs Spin', value: d.vs_spin });
+      bars.push({ label: 'vs Bounce', value: d.vs_bounce });
+      bars.push({ label: 'Power', value: d.power });
+    }
+  }
+
+  // Bowling DNA
+  if (player.bowling_dna) {
+    const d = player.bowling_dna;
+    if ((d as any).type === 'spinner') {
+      bars.push({ label: 'Turn', value: (d as any).turn });
+      bars.push({ label: 'Flight', value: (d as any).flight });
+      bars.push({ label: 'Control', value: (d as any).control });
+    } else {
+      bars.push({ label: 'Speed', value: (d as any).speed, max: 155 });
+      bars.push({ label: 'Swing', value: (d as any).swing });
+      bars.push({ label: 'Control', value: (d as any).control });
+    }
+  }
+
+  if (bars.length === 0) return null;
+
+  return (
+    <div className="space-y-1 mt-2">
+      {bars.map((bar, i) => (
+        <DNABar
+          key={bar.label}
+          label={bar.label}
+          value={bar.value}
+          max={bar.max}
+          colorClass={DNA_BAR_COLORS[i % DNA_BAR_COLORS.length]}
+        />
+      ))}
+    </div>
+  );
+}
+
+function FocusSelector({
+  player,
+  focusOptions,
+  onSelect,
+  isPending,
+}: {
+  player: TrainingPlanPlayer;
+  focusOptions: FocusOption[];
+  onSelect: (focus: string) => void;
+  isPending: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const validOptions = focusOptions.filter((o) => player.valid_focuses.includes(o.focus));
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={isPending}
+        className={clsx(
+          'text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors',
+          player.current_focus
+            ? 'bg-pitch-500/20 text-pitch-400 hover:bg-pitch-500/30'
+            : 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
+        )}
+      >
+        {isPending ? (
+          <div className="w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+        ) : player.current_focus ? (
+          player.focus_display_name
+        ) : (
+          'Set Plan'
+        )}
+        {isOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="absolute right-0 top-full mt-1 z-50 w-56 bg-dark-800 border border-dark-700 rounded-xl shadow-xl overflow-hidden"
+          >
+            <div className="max-h-64 overflow-y-auto">
+              {validOptions.map((option) => (
+                <button
+                  key={option.focus}
+                  onClick={() => {
+                    onSelect(option.focus);
+                    setIsOpen(false);
+                  }}
+                  className={clsx(
+                    'w-full text-left px-3 py-2 text-xs hover:bg-dark-700/50 transition-colors flex items-center gap-2',
+                    player.current_focus === option.focus && 'bg-pitch-500/10'
+                  )}
+                >
+                  <div className="flex-1">
+                    <p className="text-white font-medium">{option.display_name}</p>
+                    <p className="text-dark-400 text-[10px] mt-0.5">{option.description}</p>
+                  </div>
+                  {player.current_focus === option.focus && (
+                    <Check className="w-3 h-3 text-pitch-400 flex-shrink-0" />
+                  )}
+                </button>
+              ))}
+              {player.current_focus && (
+                <button
+                  onClick={() => {
+                    onSelect('__remove__');
+                    setIsOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2 border-t border-dark-700"
+                >
+                  <X className="w-3 h-3" />
+                  Remove Plan
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 export function TrainingPage() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { careerId, career } = useGameStore();
+  const { careerId } = useGameStore();
 
-  const [selectedDrill, setSelectedDrill] = useState<Drill | null>(null);
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState<number[]>([]);
-  const [trainingComplete, setTrainingComplete] = useState(false);
+  const [filter, setFilter] = useState<FilterTab>('all');
+  const [expandedPlayer, setExpandedPlayer] = useState<number | null>(null);
+  const [pendingPlayerId, setPendingPlayerId] = useState<number | null>(null);
 
-  // Available drills
-  const { data: drills, isLoading: drillsLoading, isError: drillsError, error: drillsErrorData } = useQuery({
-    queryKey: ['available-drills', careerId],
-    queryFn: () => trainingApi.getAvailableDrills(careerId!).then((r) => r.data),
+  const { data: plansData, isLoading } = useQuery({
+    queryKey: ['training-plans', careerId],
+    queryFn: () => trainingApi.getPlans(careerId!).then((r) => r.data),
     enabled: !!careerId,
-    retry: false,
   });
 
-  // Squad for player selection
-  const { data: squad } = useQuery({
-    queryKey: ['squad', careerId, career?.user_team_id],
-    queryFn: () => careerApi.getSquad(careerId!, career!.user_team_id!).then((r) => r.data),
-    enabled: !!careerId && !!career?.user_team_id && !!selectedDrill,
-  });
-
-  // Train mutation
-  const [trainError, setTrainError] = useState<string | null>(null);
-  const trainMutation = useMutation({
-    mutationFn: () => trainingApi.train(careerId!, selectedDrill!.drill_type, selectedPlayerIds),
+  const setPlanMutation = useMutation({
+    mutationFn: ({ playerId, focus }: { playerId: number; focus: string }) =>
+      trainingApi.setPlan(careerId!, playerId, focus),
+    onMutate: ({ playerId }) => setPendingPlayerId(playerId),
     onSuccess: () => {
-      setTrainError(null);
-      setTrainingComplete(true);
-      queryClient.invalidateQueries({ queryKey: ['calendar-current'] });
-      queryClient.invalidateQueries({ queryKey: ['active-boosts'] });
-      queryClient.invalidateQueries({ queryKey: ['available-drills'] });
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      setPendingPlayerId(null);
     },
-    onError: () => setTrainError('Training failed. Please try again.'),
+    onError: () => setPendingPlayerId(null),
   });
 
-  const togglePlayer = (id: number) => {
-    setSelectedPlayerIds((prev) => {
-      if (prev.includes(id)) return prev.filter((p) => p !== id);
-      if (prev.length >= MAX_PLAYERS) return prev;
-      return [...prev, id];
-    });
+  const removePlanMutation = useMutation({
+    mutationFn: (playerId: number) => trainingApi.removePlan(careerId!, playerId),
+    onMutate: (playerId) => setPendingPlayerId(playerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      setPendingPlayerId(null);
+    },
+    onError: () => setPendingPlayerId(null),
+  });
+
+  const players = plansData?.players || [];
+  const focusOptions = plansData?.focus_options || [];
+
+  const withPlan = players.filter((p) => p.current_focus);
+  const withoutPlan = players.filter((p) => !p.current_focus);
+
+  const filteredPlayers = useMemo(() => {
+    if (filter === 'no_plan') return withoutPlan;
+    if (filter === 'all') return players;
+    return players.filter((p) => p.role === filter);
+  }, [players, filter, withoutPlan]);
+
+  const handleFocusSelect = (playerId: number, focus: string) => {
+    if (focus === '__remove__') {
+      removePlanMutation.mutate(playerId);
+    } else {
+      setPlanMutation.mutate({ playerId, focus });
+    }
   };
 
   if (!careerId) return null;
-  if (drillsLoading) return <Loading fullScreen text="Loading drills..." />;
+  if (isLoading) return <Loading fullScreen text="Loading training plans..." />;
 
-  // Error guard — not training day or already trained
-  if (drillsError) {
-    const errorDetail = (drillsErrorData as any)?.response?.data?.detail || 'Training is not available right now.';
-    const isAlreadyTrained = typeof errorDetail === 'string' && errorDetail.toLowerCase().includes('already trained');
-
-    return (
-      <>
-        <SubPageHeader title="Training" showBack backTo="/dashboard" />
-        <div className="max-w-lg mx-auto px-4 py-12 text-center">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-3xl flex items-center justify-center"
-            style={{ backgroundColor: isAlreadyTrained ? 'rgba(34,197,94,0.15)' : 'rgba(100,116,139,0.15)' }}
-          >
-            {isAlreadyTrained ? (
-              <Check className="w-10 h-10 text-pitch-400" />
-            ) : (
-              <Dumbbell className="w-10 h-10 text-dark-500" />
-            )}
-          </div>
-          <h2 className="text-xl font-display font-bold text-white mb-2">
-            {isAlreadyTrained ? 'Training Complete' : 'Training Unavailable'}
-          </h2>
-          <p className="text-dark-400 text-sm mb-6">{errorDetail}</p>
-          <button onClick={() => navigate('/dashboard')} className="btn-primary">
-            Back to Hub
-          </button>
-        </div>
-      </>
-    );
-  }
-
-  // Training complete screen
-  if (trainingComplete) {
-    return (
-      <>
-        <SubPageHeader title="Training" showBack backTo="/dashboard" />
-        <div className="max-w-lg mx-auto px-4 py-12 text-center">
-          <motion.div
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-pitch-500/20 flex items-center justify-center"
-          >
-            <Check className="w-10 h-10 text-pitch-400" />
-          </motion.div>
-          <h2 className="text-xl font-display font-bold text-white mb-2">Training Complete!</h2>
-          <p className="text-dark-400 text-sm mb-2">
-            {selectedDrill?.display_name} — {selectedPlayerIds.length} player(s) trained
-          </p>
-          <p className="text-sm text-pitch-400 mb-6">
-            +{selectedDrill?.boost_amount} {selectedDrill?.boost_attribute} for {selectedDrill?.duration} matches
-          </p>
-          <button onClick={() => navigate('/dashboard')} className="btn-primary">
-            Back to Hub
-          </button>
-        </div>
-      </>
-    );
-  }
-
-  // Player selection screen
-  if (selectedDrill && squad) {
-    return (
-      <>
-        <SubPageHeader title={selectedDrill.display_name} showBack backTo="/dashboard" />
-        <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
-          <div className="glass-card p-4">
-            <p className="text-sm text-dark-300">{selectedDrill.description}</p>
-            <p className="text-xs text-pitch-400 mt-1">
-              +{selectedDrill.boost_amount} {selectedDrill.boost_attribute} for {selectedDrill.duration} matches
-            </p>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => { setSelectedDrill(null); setSelectedPlayerIds([]); }}
-              className="text-sm text-dark-400 hover:text-white flex items-center gap-1"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-            <span className="text-sm text-dark-400">
-              {selectedPlayerIds.length}/{MAX_PLAYERS} selected
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            {squad.players.map((player) => {
-              const isSelected = selectedPlayerIds.includes(player.id);
-              return (
-                <button
-                  key={player.id}
-                  onClick={() => togglePlayer(player.id)}
-                  className={clsx(
-                    'glass-card p-3 w-full flex items-center gap-3 transition-all text-left',
-                    isSelected && 'border-pitch-500/50 bg-pitch-500/5',
-                  )}
-                >
-                  <div className={clsx(
-                    'w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors',
-                    isSelected ? 'bg-pitch-500 border-pitch-500' : 'border-dark-600',
-                  )}>
-                    {isSelected && <Check className="w-3 h-3 text-white" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-white text-sm">{player.name}</p>
-                    <p className="text-xs text-dark-400">
-                      {player.role} • OVR {player.overall_rating}
-                    </p>
-                  </div>
-                  <span className="text-xs text-dark-500 uppercase">{player.role}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Error banner */}
-          {trainError && (
-            <div className="bg-ball-500/10 border border-ball-500/20 rounded-lg p-3 text-sm text-ball-400">
-              {trainError}
-            </div>
-          )}
-
-          {/* Start Training */}
-          <div className="fixed bottom-16 left-0 right-0 bg-dark-950/90 backdrop-blur-lg border-t border-dark-800 z-50">
-            <div className="max-w-lg mx-auto px-4 py-4">
-              <button
-                onClick={() => trainMutation.mutate()}
-                disabled={selectedPlayerIds.length === 0 || trainMutation.isPending}
-                className="btn-primary w-full flex items-center justify-center gap-2"
-              >
-                {trainMutation.isPending ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Training...
-                  </>
-                ) : (
-                  <>
-                    <Dumbbell className="w-4 h-4" />
-                    Start Training ({selectedPlayerIds.length} player{selectedPlayerIds.length !== 1 ? 's' : ''})
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  // Drill selection screen
   return (
     <>
       <SubPageHeader title="Training Center" showBack backTo="/dashboard" />
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
-        <p className="text-sm text-dark-400">
-          Choose a drill for today. Training boosts last for the next 2 matches.
-        </p>
-
-        {(!drills || drills.length === 0) && (
-          <div className="text-center py-12">
-            <Dumbbell className="w-16 h-16 text-dark-600 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-white mb-2">No Drills Available</h2>
-            <p className="text-dark-400 text-sm">
-              Training is available on training days only.
+      <div className="max-w-lg mx-auto px-4 py-4 space-y-4 pb-24">
+        {/* Summary */}
+        <div className={clsx(
+          'glass-card p-4 flex items-center gap-3',
+          withoutPlan.length > 0 && 'border-amber-500/30',
+        )}>
+          <div className={clsx(
+            'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0',
+            withoutPlan.length === 0 ? 'bg-pitch-500/20' : 'bg-amber-500/20'
+          )}>
+            {withoutPlan.length === 0 ? (
+              <Check className="w-5 h-5 text-pitch-400" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white">
+              {withPlan.length}/{players.length} players have training plans
+            </p>
+            <p className="text-xs text-dark-400">
+              {withoutPlan.length === 0
+                ? 'All players will improve on training days'
+                : `${withoutPlan.length} player(s) won't train — set their plans!`}
             </p>
           </div>
-        )}
+        </div>
 
-        <div className="space-y-3">
-          {drills?.map((drill, i) => {
-            const DrillIcon = DRILL_ICONS[drill.drill_type] || Dumbbell;
+        {/* Filter Tabs */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+          {([
+            { key: 'all', label: 'All' },
+            { key: 'batsman', label: 'Batsmen' },
+            { key: 'bowler', label: 'Bowlers' },
+            { key: 'all_rounder', label: 'All-Round' },
+            { key: 'no_plan', label: `No Plan (${withoutPlan.length})` },
+          ] as { key: FilterTab; label: string }[]).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={clsx(
+                'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors',
+                filter === key
+                  ? 'bg-pitch-500/20 text-pitch-400'
+                  : 'bg-dark-800/50 text-dark-400 hover:text-white'
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Player List */}
+        <div className="space-y-2">
+          {filteredPlayers.map((player, i) => {
+            const isExpanded = expandedPlayer === player.player_id;
+            const isPending = pendingPlayerId === player.player_id;
+
             return (
-              <motion.button
-                key={drill.drill_type}
-                initial={{ opacity: 0, y: 20 }}
+              <motion.div
+                key={player.player_id}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                onClick={() => setSelectedDrill(drill)}
-                className="glass-card p-4 w-full flex items-start gap-3 hover:border-pitch-500/30 transition-all text-left"
+                transition={{ delay: i * 0.02 }}
+                className={clsx(
+                  'glass-card overflow-hidden transition-all',
+                  !player.current_focus && 'border-amber-500/20',
+                )}
               >
-                <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                  <DrillIcon className="w-5 h-5 text-blue-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-white">{drill.display_name}</p>
-                  <p className="text-xs text-dark-400 mt-0.5">{drill.description}</p>
-                  <p className="text-xs text-pitch-400 mt-1">
-                    +{drill.boost_amount} {drill.boost_attribute} for {drill.duration} matches
-                  </p>
-                  <div className="flex gap-1 mt-1.5">
-                    {drill.best_for.map((role) => (
-                      <span key={role} className="text-[10px] bg-dark-700/50 text-dark-400 px-1.5 py-0.5 rounded">
-                        {role}
+                {/* Main row */}
+                <div className="p-3 flex items-center gap-3">
+                  {/* Player info */}
+                  <button
+                    onClick={() => setExpandedPlayer(isExpanded ? null : player.player_id)}
+                    className="flex-1 flex items-center gap-2.5 text-left min-w-0"
+                  >
+                    <div className="flex-shrink-0">
+                      <span className={clsx(
+                        'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                        ROLE_COLORS[player.role] || 'bg-dark-700 text-dark-400'
+                      )}>
+                        {ROLE_LABELS[player.role] || player.role}
                       </span>
-                    ))}
-                  </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{player.player_name}</p>
+                      <p className="text-[10px] text-dark-500">
+                        OVR {player.overall_rating} • Age {player.age}
+                      </p>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronUp className="w-4 h-4 text-dark-500 flex-shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-dark-500 flex-shrink-0" />
+                    )}
+                  </button>
+
+                  {/* Focus selector */}
+                  <FocusSelector
+                    player={player}
+                    focusOptions={focusOptions}
+                    onSelect={(focus) => handleFocusSelect(player.player_id, focus)}
+                    isPending={isPending}
+                  />
                 </div>
-              </motion.button>
+
+                {/* Expanded DNA detail */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-3 pb-3 border-t border-dark-700/50">
+                        <PlayerDNASummary player={player} />
+
+                        {/* Recommended focuses */}
+                        <div className="mt-3">
+                          <p className="text-[10px] text-dark-500 uppercase tracking-wider mb-1.5">
+                            Recommended Focuses
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {focusOptions
+                              .filter(
+                                (o) =>
+                                  player.valid_focuses.includes(o.focus) &&
+                                  o.best_for_roles.includes(player.role)
+                              )
+                              .slice(0, 6)
+                              .map((option) => (
+                                <button
+                                  key={option.focus}
+                                  onClick={() => handleFocusSelect(player.player_id, option.focus)}
+                                  className={clsx(
+                                    'text-[10px] px-2 py-1 rounded-md transition-colors',
+                                    player.current_focus === option.focus
+                                      ? 'bg-pitch-500/20 text-pitch-400'
+                                      : 'bg-dark-700/50 text-dark-400 hover:text-white hover:bg-dark-700'
+                                  )}
+                                >
+                                  {option.display_name}
+                                </button>
+                              ))}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             );
           })}
         </div>
+
+        {filteredPlayers.length === 0 && (
+          <div className="text-center py-8">
+            <Users className="w-12 h-12 text-dark-600 mx-auto mb-3" />
+            <p className="text-sm text-dark-400">
+              {filter === 'no_plan' ? 'All players have training plans!' : 'No players match this filter.'}
+            </p>
+          </div>
+        )}
       </div>
     </>
   );

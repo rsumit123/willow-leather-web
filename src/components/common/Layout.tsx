@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -44,6 +44,18 @@ export function Layout() {
     refetchInterval: 30000,
   });
   const unreadCount = unreadData?.count || 0;
+
+  // Bell shake — triggers when unread count increases
+  const [bellShaking, setBellShaking] = useState(false);
+  const prevUnreadRef = useRef(0);
+  useEffect(() => {
+    if (unreadCount > prevUnreadRef.current && prevUnreadRef.current >= 0) {
+      setBellShaking(true);
+      const timer = setTimeout(() => setBellShaking(false), 2000);
+      return () => clearTimeout(timer);
+    }
+    prevUnreadRef.current = unreadCount;
+  }, [unreadCount]);
 
   // Tier color helpers
   const tierColor = career?.tier === 'district' ? 'amber' : career?.tier === 'state' ? 'blue' : 'pitch';
@@ -115,7 +127,10 @@ export function Layout() {
               {/* Inbox Bell */}
               <Link
                 to="/inbox"
-                className="relative p-2 hover:bg-dark-800 rounded-lg transition-colors"
+                className={clsx(
+                  "relative p-2 hover:bg-dark-800 rounded-lg transition-colors",
+                  bellShaking && "animate-[bell-shake_0.5s_ease-in-out_3]"
+                )}
               >
                 <Bell className="w-5 h-5 text-dark-300" />
                 {unreadCount > 0 && (

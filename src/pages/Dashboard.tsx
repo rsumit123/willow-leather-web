@@ -136,12 +136,11 @@ export function DashboardPage() {
     enabled: !!careerId && (careerData?.status === 'in_season' || careerData?.status === 'playoffs' || careerData?.status === 'post_season'),
   });
 
-  // Check if training is available (only on training days)
-  const { isError: trainingUnavailable } = useQuery({
-    queryKey: ['available-drills', careerId],
-    queryFn: () => trainingApi.getAvailableDrills(careerId!).then((r) => r.data),
+  // Check how many players have training plans (for training day display)
+  const { data: trainingPlansData } = useQuery({
+    queryKey: ['training-plans-summary', careerId],
+    queryFn: () => trainingApi.getPlans(careerId!).then((r) => r.data),
     enabled: !!careerId && calendarData?.current_day?.day_type === 'training',
-    retry: false,
     staleTime: 60000,
   });
 
@@ -721,58 +720,80 @@ export function DashboardPage() {
               </div>
             )}
 
-            {currentDay.day_type === 'training' && (
-              <div>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={clsx(
-                    'w-10 h-10 rounded-xl flex items-center justify-center',
-                    trainingUnavailable ? 'bg-pitch-500/20' : 'bg-blue-500/20',
-                  )}>
-                    {trainingUnavailable ? (
-                      <Check className="w-5 h-5 text-pitch-400" />
-                    ) : (
+            {currentDay.day_type === 'training' && (() => {
+              const totalPlayers = trainingPlansData?.players?.length || 0;
+              const withPlan = trainingPlansData?.players?.filter((p: any) => p.current_focus)?.length || 0;
+              const withoutPlan = totalPlayers - withPlan;
+
+              return (
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
                       <Dumbbell className="w-5 h-5 text-blue-400" />
-                    )}
+                    </div>
+                    <div>
+                      <p className="font-medium text-white">Training Day</p>
+                      <p className="text-xs text-dark-400">
+                        Your squad auto-trains when you advance
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-white">
-                      {trainingUnavailable ? 'Training Complete' : 'Training Day'}
-                    </p>
-                    <p className="text-xs text-dark-400">
-                      {trainingUnavailable ? 'You have already trained today' : 'Choose drills for your squad'}
-                    </p>
-                  </div>
-                </div>
-                {!trainingUnavailable ? (
+
+                  {/* Plan status */}
+                  {trainingPlansData && (
+                    <div className={clsx(
+                      'rounded-lg p-2.5 mb-3 flex items-center gap-2',
+                      withoutPlan > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-pitch-500/10 border border-pitch-500/20'
+                    )}>
+                      {withoutPlan > 0 ? (
+                        <>
+                          <TrendingUp className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                          <p className="text-xs text-amber-300">
+                            {withoutPlan} player(s) have no training plan.{' '}
+                            <button onClick={() => navigate('/training')} className="underline hover:text-amber-200">
+                              Set plans
+                            </button>
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4 text-pitch-400 flex-shrink-0" />
+                          <p className="text-xs text-pitch-300">
+                            All {totalPlayers} players have training plans
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <button
-                      onClick={() => navigate('/training')}
+                      onClick={() => advanceMutation.mutate(false)}
+                      disabled={advanceMutation.isPending}
                       className="btn-primary flex-1 flex items-center justify-center gap-2 text-sm"
                     >
-                      <Dumbbell className="w-4 h-4" />
-                      Train Squad
+                      {advanceMutation.isPending ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Training...
+                        </>
+                      ) : (
+                        <>
+                          <Dumbbell className="w-4 h-4" />
+                          Advance & Train
+                        </>
+                      )}
                     </button>
                     <button
-                      onClick={() => advanceMutation.mutate(true)}
-                      disabled={advanceMutation.isPending}
+                      onClick={() => navigate('/training')}
                       className="btn-secondary flex items-center justify-center gap-2 text-sm"
                     >
-                      <SkipForward className="w-4 h-4" />
-                      Skip
+                      Manage Plans
                     </button>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => advanceMutation.mutate(true)}
-                    disabled={advanceMutation.isPending}
-                    className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
-                  >
-                    <SkipForward className="w-4 h-4" />
-                    {advanceMutation.isPending ? 'Advancing...' : 'Skip to Next Event'}
-                  </button>
-                )}
-              </div>
-            )}
+                </div>
+              );
+            })()}
 
             {(currentDay.day_type === 'rest' || currentDay.day_type === 'travel') && (
               <div>
@@ -853,6 +874,40 @@ export function DashboardPage() {
           </motion.div>
         )}
 
+        {/* ─── Around the League (AI Fixtures) ─── */}
+        {(calendarData as any)?.ai_fixtures_today?.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-4"
+          >
+            <h3 className="text-xs text-dark-400 uppercase tracking-wider font-semibold mb-3 flex items-center gap-1.5">
+              <Swords className="w-3.5 h-3.5" />
+              Around the League
+            </h3>
+            <div className="space-y-2">
+              {(calendarData as any).ai_fixtures_today.map((fixture: any) => (
+                <div
+                  key={fixture.id}
+                  className="flex items-center justify-between py-1.5 px-2.5 bg-dark-800/30 rounded-lg"
+                >
+                  <span className="text-xs text-dark-300 font-medium">{fixture.team1_name}</span>
+                  <span className="text-[10px] text-dark-500 mx-2">vs</span>
+                  <span className="text-xs text-dark-300 font-medium">{fixture.team2_name}</span>
+                  {fixture.status === 'completed' && fixture.winner_name && (
+                    <span className="text-[10px] text-pitch-400 ml-auto pl-2">
+                      {fixture.winner_name} won
+                    </span>
+                  )}
+                  {fixture.status === 'scheduled' && (
+                    <span className="text-[10px] text-dark-500 ml-auto pl-2">Scheduled</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         {/* ─── Coach Marks ─── */}
         {careerData?.status === 'pre_season' && !playingXI?.is_set && (
           <CoachMark
@@ -876,7 +931,7 @@ export function DashboardPage() {
           <CoachMark
             id="first_training_day"
             title="Training Day"
-            message="Training drills give temporary stat boosts for 2 matches. Choose wisely!"
+            message="Set training plans for your players — they'll auto-train and permanently improve on each training day."
             isVisible={isCoachVisible('first_training_day')}
             onDismiss={dismissCoach}
           />

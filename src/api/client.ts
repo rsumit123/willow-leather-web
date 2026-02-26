@@ -307,6 +307,70 @@ export interface ActiveBoost {
   drill_type: string;
 }
 
+// ─── Training Plan Types (v2) ─────────────────────────────────────
+
+export interface TrainingPlanPlayer {
+  player_id: number;
+  player_name: string;
+  role: string;
+  age: number;
+  overall_rating: number;
+  batting_skill: number;
+  bowling_skill: number;
+  batting_dna?: BatterDNA;
+  bowling_dna?: BowlerDNA;
+  bowling_type: string;
+  current_focus: string | null;
+  focus_display_name: string | null;
+  valid_focuses: string[];
+}
+
+export interface FocusOption {
+  focus: string;
+  display_name: string;
+  description: string;
+  target_type: string;
+  target_attributes: string[];
+  best_for_roles: string[];
+  icon: string;
+}
+
+export interface TrainingPlansResponse {
+  players: TrainingPlanPlayer[];
+  focus_options: FocusOption[];
+}
+
+export interface TrainingImprovement {
+  player_id: number;
+  player_name: string;
+  focus: string;
+  attribute: string;
+  old_value: number;
+  new_value: number;
+  gain: number;
+}
+
+export interface AIFixture {
+  id: number;
+  match_number: number;
+  team1_name: string;
+  team2_name: string;
+  status: string;
+  winner_name?: string;
+  result_summary?: string;
+}
+
+export interface AdvanceDayResponse {
+  day: GameDay;
+  season_ended: boolean;
+  training_results?: TrainingImprovement[];
+  untrained_warning?: {
+    count: number;
+    player_names: string[];
+  };
+  ai_fixtures_today?: AIFixture[];
+}
+
 // ─── Progression Types ─────────────────────────────────────────────
 export interface BoardObjective {
   id: number;
@@ -1078,6 +1142,20 @@ export const notificationApi = {
 
 // ─── Training API ──────────────────────────────────────────────────
 export const trainingApi = {
+  // v2 — Persistent training plans
+  getPlans: (careerId: number) =>
+    api.get<TrainingPlansResponse>(`/training/${careerId}/plans`),
+  setPlan: (careerId: number, playerId: number, focus: string) =>
+    api.put(`/training/${careerId}/plans/${playerId}`, { focus }),
+  removePlan: (careerId: number, playerId: number) =>
+    api.delete(`/training/${careerId}/plans/${playerId}`),
+  setBulkPlans: (careerId: number, plans: Array<{ player_id: number; focus: string }>) =>
+    api.put(`/training/${careerId}/plans/bulk`, { plans }),
+  getFocusOptions: (careerId: number) =>
+    api.get<FocusOption[]>(`/training/${careerId}/focus-options`),
+  getHistory: (careerId: number, limit?: number) =>
+    api.get<TrainingImprovement[]>(`/training/${careerId}/history?limit=${limit || 50}`),
+  // Legacy — drill-based
   getAvailableDrills: (careerId: number) =>
     api.get<Drill[]>(`/training/${careerId}/available-drills`),
   train: (careerId: number, drillType: string, playerIds: number[]) =>
