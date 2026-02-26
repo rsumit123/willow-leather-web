@@ -109,20 +109,22 @@ function FocusSelector({
   focusOptions,
   onSelect,
   isPending,
+  isOpen,
+  onToggle,
 }: {
   player: TrainingPlanPlayer;
   focusOptions: FocusOption[];
   onSelect: (focus: string) => void;
   isPending: boolean;
+  isOpen: boolean;
+  onToggle: () => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-
   const validOptions = focusOptions.filter((o) => player.valid_focuses.includes(o.focus));
 
   return (
     <div className="relative">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={onToggle}
         disabled={isPending}
         className={clsx(
           'text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors',
@@ -155,7 +157,7 @@ function FocusSelector({
                   key={option.focus}
                   onClick={() => {
                     onSelect(option.focus);
-                    setIsOpen(false);
+                    onToggle();
                   }}
                   className={clsx(
                     'w-full text-left px-3 py-2 text-xs hover:bg-dark-700/50 transition-colors flex items-center gap-2',
@@ -175,7 +177,7 @@ function FocusSelector({
                 <button
                   onClick={() => {
                     onSelect('__remove__');
-                    setIsOpen(false);
+                    onToggle();
                   }}
                   className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2 border-t border-dark-700"
                 >
@@ -198,6 +200,7 @@ export function TrainingPage() {
   const [filter, setFilter] = useState<FilterTab>('all');
   const [expandedPlayer, setExpandedPlayer] = useState<number | null>(null);
   const [pendingPlayerId, setPendingPlayerId] = useState<number | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
 
   const { data: plansData, isLoading } = useQuery({
     queryKey: ['training-plans', careerId],
@@ -309,6 +312,7 @@ export function TrainingPage() {
           {filteredPlayers.map((player, i) => {
             const isExpanded = expandedPlayer === player.player_id;
             const isPending = pendingPlayerId === player.player_id;
+            const isDropdownOpen = openDropdownId === player.player_id;
 
             return (
               <motion.div
@@ -317,9 +321,11 @@ export function TrainingPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.02 }}
                 className={clsx(
-                  'glass-card transition-all',
+                  'glass-card transition-all relative',
                   !player.current_focus && 'border-amber-500/20',
+                  isDropdownOpen && 'z-30',
                 )}
+                style={isDropdownOpen ? { zIndex: 30 } : undefined}
               >
                 {/* Main row */}
                 <div className="p-3 flex items-center gap-3">
@@ -355,6 +361,8 @@ export function TrainingPage() {
                     focusOptions={focusOptions}
                     onSelect={(focus) => handleFocusSelect(player.player_id, focus)}
                     isPending={isPending}
+                    isOpen={isDropdownOpen}
+                    onToggle={() => setOpenDropdownId(isDropdownOpen ? null : player.player_id)}
                   />
                 </div>
 
