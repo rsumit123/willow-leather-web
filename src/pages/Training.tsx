@@ -317,7 +317,7 @@ export function TrainingPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.02 }}
                 className={clsx(
-                  'glass-card overflow-hidden transition-all',
+                  'glass-card transition-all',
                   !player.current_focus && 'border-amber-500/20',
                 )}
               >
