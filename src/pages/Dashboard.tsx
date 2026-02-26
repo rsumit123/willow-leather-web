@@ -658,6 +658,12 @@ export function DashboardPage() {
                     )}
                   </div>
                 </div>
+                {currentDay.pitch_display_name && !isCurrentMatchCompleted && (
+                  <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-dark-800/50">
+                    <span className="text-xs text-dark-400">Pitch:</span>
+                    <span className="text-xs font-medium text-white">{currentDay.pitch_display_name}</span>
+                  </div>
+                )}
                 {isCurrentMatchCompleted ? (
                   <button
                     onClick={() => advanceMutation.mutate(true)}

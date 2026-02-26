@@ -261,6 +261,8 @@ export interface GameDay {
   match_number?: number;
   is_user_home?: boolean;
   fixture_status?: string;  // "scheduled" | "in_progress" | "completed"
+  pitch_name?: string;
+  pitch_display_name?: string;
 }
 
 export interface CalendarCurrent {

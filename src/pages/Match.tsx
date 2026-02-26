@@ -112,7 +112,7 @@ export function MatchPage() {
   const { data: state, isLoading, isError } = useQuery({
     queryKey: ['match-state', careerId, fid],
     queryFn: () => matchApi.getState(careerId!, fid).then((r) => r.data),
-    enabled: !!careerId && !!fid && !showToss && !showPreMatchReview,
+    enabled: !!careerId && !!fid && !showToss && !showPreMatchReview && !showPitchReveal,
     refetchInterval: (query) => {
         // Stop polling if match is completed or if there's an error
         if (query.state.error) return false;
