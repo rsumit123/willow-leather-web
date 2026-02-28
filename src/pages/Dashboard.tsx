@@ -362,6 +362,14 @@ export function DashboardPage() {
   const lostQ1WaitingForQ2 = playoffBracket?.qualifier_1?.status === 'completed' &&
     playedInQ1 && playoffBracket.qualifier_1.winner !== userTeam?.short_name &&
     !playoffBracket?.qualifier_2?.team1;
+  const wonQ1WaitingForElim = playoffBracket?.qualifier_1?.status === 'completed' &&
+    playedInQ1 && playoffBracket.qualifier_1.winner === userTeam?.short_name &&
+    playoffBracket?.eliminator?.status !== 'completed';
+  const wonQ1WaitingForQ2 = playoffBracket?.qualifier_1?.status === 'completed' &&
+    playedInQ1 && playoffBracket.qualifier_1.winner === userTeam?.short_name &&
+    playoffBracket?.eliminator?.status === 'completed' &&
+    playoffBracket?.qualifier_2?.status !== 'completed' &&
+    !playedInQ2;
 
   const isEliminated = eliminatedInElim || eliminatedInQ2;
   const didNotQualify = careerData?.status === 'playoffs' && !qualifiedForPlayoffs;
@@ -579,6 +587,52 @@ export function DashboardPage() {
               className="btn-primary text-sm"
             >
               {simulateNextPlayoffMutation.isPending ? 'Simulating...' : 'Simulate Eliminator'}
+            </button>
+          </motion.div>
+        )}
+
+        {wonQ1WaitingForElim && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-5 text-center border-pitch-500/30 bg-pitch-500/5"
+          >
+            <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-pitch-500/20 flex items-center justify-center">
+              <Trophy className="w-8 h-8 text-pitch-500" />
+            </div>
+            <h2 className="text-lg font-semibold text-pitch-400 mb-1">Waiting for Eliminator</h2>
+            <p className="text-dark-400 text-sm mb-3">
+              {userTeam?.short_name} won Qualifier 1 and advances to the Final!
+            </p>
+            <button
+              onClick={() => simulateNextPlayoffMutation.mutate()}
+              disabled={simulateNextPlayoffMutation.isPending}
+              className="btn-primary text-sm"
+            >
+              {simulateNextPlayoffMutation.isPending ? 'Simulating...' : 'Simulate Eliminator'}
+            </button>
+          </motion.div>
+        )}
+
+        {wonQ1WaitingForQ2 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-5 text-center border-pitch-500/30 bg-pitch-500/5"
+          >
+            <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-pitch-500/20 flex items-center justify-center">
+              <Trophy className="w-8 h-8 text-pitch-500" />
+            </div>
+            <h2 className="text-lg font-semibold text-pitch-400 mb-1">Waiting for Qualifier 2</h2>
+            <p className="text-dark-400 text-sm mb-3">
+              {userTeam?.short_name} is through to the Final! Waiting for your opponent.
+            </p>
+            <button
+              onClick={() => simulateNextPlayoffMutation.mutate()}
+              disabled={simulateNextPlayoffMutation.isPending}
+              className="btn-primary text-sm"
+            >
+              {simulateNextPlayoffMutation.isPending ? 'Simulating...' : 'Simulate Qualifier 2'}
             </button>
           </motion.div>
         )}
