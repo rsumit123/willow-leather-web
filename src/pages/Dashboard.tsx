@@ -370,6 +370,9 @@ export function DashboardPage() {
     playoffBracket?.eliminator?.status === 'completed' &&
     playoffBracket?.qualifier_2?.status !== 'completed' &&
     !playedInQ2;
+  const userInFinal = playoffBracket?.final?.status === 'scheduled' &&
+    (playoffBracket?.final?.team1 === userTeam?.short_name || playoffBracket?.final?.team2 === userTeam?.short_name);
+  const userInQ2 = playoffBracket?.qualifier_2?.status === 'scheduled' && playedInQ2;
 
   const isEliminated = eliminatedInElim || eliminatedInQ2;
   const didNotQualify = careerData?.status === 'playoffs' && !qualifiedForPlayoffs;
@@ -633,6 +636,52 @@ export function DashboardPage() {
               className="btn-primary text-sm"
             >
               {simulateNextPlayoffMutation.isPending ? 'Simulating...' : 'Simulate Qualifier 2'}
+            </button>
+          </motion.div>
+        )}
+
+        {userInFinal && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-5 text-center bg-gradient-to-br from-yellow-500/10 to-amber-600/5 border-yellow-500/30"
+          >
+            <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-yellow-500/20 flex items-center justify-center">
+              <Trophy className="w-8 h-8 text-yellow-500" />
+            </div>
+            <h2 className="text-lg font-semibold text-yellow-400 mb-1">The Final!</h2>
+            <p className="text-dark-400 text-sm mb-3">
+              {playoffBracket?.final?.team1} vs {playoffBracket?.final?.team2}
+            </p>
+            <button
+              onClick={() => navigate(`/match/${playoffBracket?.final?.fixture_id}`)}
+              className="btn-primary w-full flex items-center justify-center gap-2"
+            >
+              <Play className="w-4 h-4" />
+              Play Final
+            </button>
+          </motion.div>
+        )}
+
+        {userInQ2 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-5 text-center border-amber-500/30 bg-amber-500/5"
+          >
+            <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-amber-500/20 flex items-center justify-center">
+              <Swords className="w-8 h-8 text-amber-500" />
+            </div>
+            <h2 className="text-lg font-semibold text-amber-400 mb-1">Qualifier 2</h2>
+            <p className="text-dark-400 text-sm mb-3">
+              {playoffBracket?.qualifier_2?.team1} vs {playoffBracket?.qualifier_2?.team2} — Win to reach the Final!
+            </p>
+            <button
+              onClick={() => navigate(`/match/${playoffBracket?.qualifier_2?.fixture_id}`)}
+              className="btn-primary w-full flex items-center justify-center gap-2"
+            >
+              <Play className="w-4 h-4" />
+              Play Match
             </button>
           </motion.div>
         )}
