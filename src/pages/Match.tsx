@@ -546,6 +546,7 @@ export function MatchPage() {
     queryClient.invalidateQueries({ queryKey: ['career'] });
     queryClient.invalidateQueries({ queryKey: ['next-fixture'] });
     queryClient.invalidateQueries({ queryKey: ['leaderboards'] });
+    queryClient.invalidateQueries({ queryKey: ['playoff-bracket'] });
     navigate('/dashboard');
   };
 
