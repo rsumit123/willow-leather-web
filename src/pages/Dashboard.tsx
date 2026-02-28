@@ -225,6 +225,8 @@ export function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['career'] });
       queryClient.invalidateQueries({ queryKey: ['next-fixture'] });
       queryClient.invalidateQueries({ queryKey: ['available-drills'] });
+      queryClient.invalidateQueries({ queryKey: ['standings'] });
+      queryClient.invalidateQueries({ queryKey: ['playoff-bracket'] });
     },
     onError: onMutationError,
   });
